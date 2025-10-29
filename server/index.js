@@ -40,6 +40,23 @@ const GAME_WORDS = [
   'کراوات', 'کمربند', 'ساعت', 'عینک', 'کلاه', 'دستکش', 'جوراب', 'دمپایی'
 ];
 
+// Normalize Persian text for robust equality checks
+// 1) remove whitespace 2) آ -> ا 3) Arabic letters to Persian (ي->ی, ك->ک, ى->ی)
+// 4) keep only Persian letters (آ..ی)
+function normalizePersian(input) {
+  if (typeof input !== 'string') return '';
+  let s = input
+    .trim()
+    .replace(/\s+/g, '')
+    .replace(/آ/g, 'ا')
+    .replace(/ي/g, 'ی')
+    .replace(/ى/g, 'ی')
+    .replace(/ك/g, 'ک');
+  // keep only Persian letters
+  s = s.replace(/[^آ-ی]/g, '');
+  return s;
+}
+
 io.on('connection', (socket) => {
   socket.on('create-room', ({ playerName }) => {
     const roomCode = generateRoomCode();
@@ -151,7 +168,7 @@ io.on('connection', (socket) => {
     }
     
     const room = rooms.get(roomCode);
-    const isCorrect = question === room.secretWord;
+    const isCorrect = normalizePersian(question) === normalizePersian(room.secretWord);
     
     if (isCorrect) {
       // Correct guess - only send one message
@@ -215,7 +232,7 @@ io.on('connection', (socket) => {
     
     if (!player || !room) return;
     
-    if (guess === room.secretWord) {
+    if (normalizePersian(guess) === normalizePersian(room.secretWord)) {
       // Add correct guess message (only once)
       io.to(roomCode).emit('question-asked', {
         playerName: player.name,
@@ -415,6 +432,58 @@ io.on('connection', (socket) => {
       
       room.gameState = 'waiting';
     }
+  });
+
+  socket.on('alpha-timer-expired', ({ roomCode }) => {
+    const room = rooms.get(roomCode);
+    const player = players.get(socket.id);
+    
+    if (!room || !player) return;
+    
+    // Only alpha werewolf can trigger this
+    if (player.role !== 'alpha-werewolf') return;
+    
+    // Alpha werewolf ran out of time - citizens win
+    const roomPlayers = Array.from(players.values()).filter(p => p.roomCode === roomCode);
+    io.to(roomCode).emit('game-ended', {
+      winner: 'citizens',
+      reason: 'زمان آلفا گرگینه تمام شد',
+      roles: roomPlayers.map(p => ({
+        name: p.name,
+        role: p.role,
+        isShahrdar: p.isShahrdar
+      }))
+    });
+    
+    room.gameState = 'waiting';
+  });
+
+  socket.on('restart-game', ({ roomCode }) => {
+    const room = rooms.get(roomCode);
+    const player = players.get(socket.id);
+    
+    if (!room || !player) return;
+    
+    // Only room creator can restart
+    if (room.creatorId !== socket.id) {
+      socket.emit('error', { message: 'فقط سازنده اتاق می‌تواند بازی را شروع کند' });
+      return;
+    }
+    
+    // Reset game state
+    room.gameState = 'waiting';
+    room.secretWord = null;
+    room.votes = {};
+    
+    // Reset all players
+    const roomPlayers = Array.from(players.values()).filter(p => p.roomCode === roomCode);
+    roomPlayers.forEach(p => {
+      p.role = null;
+      p.isShahrdar = false;
+      p.questionsAsked = 0;
+    });
+    
+    updateRoomPlayers(roomCode);
   });
 
   socket.on('disconnect', () => {

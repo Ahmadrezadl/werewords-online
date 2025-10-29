@@ -16,7 +16,9 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false })
   const [myVote, setMyVote] = useState(null);
   const [gameResult, setGameResult] = useState(null);
   const [playerQuestionsAsked, setPlayerQuestionsAsked] = useState({});
+  const [alphaLastChanceTimer, setAlphaLastChanceTimer] = useState(60);
   const intervalRef = useRef(null);
+  const alphaTimerRef = useRef(null);
 
   useEffect(() => {
     if (!socket) return;
@@ -37,6 +39,11 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false })
       }
       setGameResult(null);
       setPlayerQuestionsAsked({});
+      setWordGuessed(false);
+      setAlphaLastChanceTimer(60);
+      if (alphaTimerRef.current) {
+        clearInterval(alphaTimerRef.current);
+      }
     });
 
     socket.on('secret-word-revealed', ({ secretWord, role }) => {
@@ -51,10 +58,31 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false })
     socket.on('word-guessed', ({ guesserName, secretWord }) => {
       setWordGuessed(true);
       setSecretWord(secretWord);
-      // Stop timer
+      // Stop main timer
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
+      // Clear any existing alpha timer
+      if (alphaTimerRef.current) {
+        clearInterval(alphaTimerRef.current);
+        alphaTimerRef.current = null;
+      }
+      // Start alpha last chance timer
+      setAlphaLastChanceTimer(60);
+      // Start the countdown interval
+      alphaTimerRef.current = setInterval(() => {
+        setAlphaLastChanceTimer(prev => {
+          const newValue = prev - 1;
+          if (newValue <= 0) {
+            if (alphaTimerRef.current) {
+              clearInterval(alphaTimerRef.current);
+              alphaTimerRef.current = null;
+            }
+            return 0;
+          }
+          return newValue;
+        });
+      }, 1000);
     });
 
     socket.on('alpha-last-chance-opportunity', ({ message }) => {
@@ -141,8 +169,21 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false })
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
+      if (alphaTimerRef.current) clearInterval(alphaTimerRef.current);
     };
   }, [isPlaying, wordGuessed]);
+
+  useEffect(() => {
+    // End game if alpha timer runs out and word was guessed
+    if (wordGuessed && alphaLastChanceTimer <= 0 && currentPlayer && currentPlayer.role === 'alpha-werewolf') {
+      // Alpha werewolf ran out of time - citizens win
+      if (alphaTimerRef.current) {
+        clearInterval(alphaTimerRef.current);
+      }
+      // Emit event to server that alpha timer ran out
+      socket.emit('alpha-timer-expired', { roomCode });
+    }
+  }, [alphaLastChanceTimer, wordGuessed, currentPlayer, socket, roomCode]);
 
   const handleStartGame = () => {
     socket.emit('start-game', { roomCode });
@@ -229,13 +270,28 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false })
             </div>
           </div>
 
-          <button 
-            className="btn" 
-            onClick={() => setGameResult(null)}
-            style={{ marginTop: '30px', padding: '12px 30px', fontSize: '16px' }}
-          >
-            بازگشت به اتاق
-          </button>
+          {playerId === creatorId ? (
+            <button 
+              className="btn" 
+              onClick={() => {
+                setGameResult(null);
+                socket.emit('restart-game', { roomCode });
+              }}
+              style={{ marginTop: '30px', padding: '12px 30px', fontSize: '16px' }}
+            >
+              شروع بازی جدید
+            </button>
+          ) : (
+            <button 
+              className="btn" 
+              onClick={() => {
+                window.location.reload();
+              }}
+              style={{ marginTop: '30px', padding: '12px 30px', fontSize: '16px' }}
+            >
+              خروج از بازی
+            </button>
+          )}
         </div>
       </div>
     );
@@ -283,6 +339,12 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false })
               <div className="game-timer" style={{ marginBottom: '10px' }}>
                 ⏱️ زمان باقی‌مانده: {formatTime(timeLeft)}
               </div>
+
+              {wordGuessed && currentPlayer && currentPlayer.role === 'alpha-werewolf' && (
+                <div className="game-timer" style={{ marginBottom: '10px', background: '#ff9800', color: 'white' }}>
+                  🔴 زمان شما: {formatTime(alphaLastChanceTimer)} {alphaLastChanceTimer <= 10 && alphaLastChanceTimer > 0 && '(عجله کنید!)'}
+                </div>
+              )}
 
               {currentPlayer && (
                 <>
@@ -377,47 +439,87 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false })
                 const canSee = canSeeWerewolves(currentPlayer?.role);
                 const showWerewolf = canSee && isWerewolfRole;
                 const voteCount = votes[player.id] || 0;
+                const totalPlayers = players.length;
+                const questionsAsked = playerQuestionsAsked[player.name] || 0;
                 
                 return (
                   <div key={player.id} style={{ 
-                    padding: '10px', 
-                    margin: '5px 0', 
+                    padding: '12px', 
+                    margin: '8px 0', 
                     background: myVote === player.id ? '#e3f2fd' : 'white',
                     border: myVote === player.id ? '2px solid #2196f3' : '1px solid #ddd',
-                    borderRadius: '5px'
+                    borderRadius: '8px'
                   }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span>
-                        {player.name}
-                        {player.id === playerId && ' (شما)'}
-                        {showWerewolf && <span style={{marginLeft: '5px'}}>🐺</span>}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <div>
+                        <span style={{ fontWeight: 'bold' }}>
+                          {player.name}
+                          {player.id === playerId && ' (شما)'}
+                        </span>
+                        {showWerewolf && <span style={{marginLeft: '8px'}}>🐺</span>}
+                      </div>
+                      <span style={{ fontSize: '12px', color: '#666' }}>
+                        {questionsAsked}/10 سوال
                       </span>
-                      {timeLeft < 240 && !wordGuessed && (
-                        <button 
-                          className="btn" 
-                          onClick={() => handleVote(player.id)}
-                          style={{ padding: '5px 10px', fontSize: '12px' }}
-                        >
-                          {myVote === player.id ? '✓' : '✓'}{voteCount > 0 && ` ${voteCount}`}
-                        </button>
-                      )}
                     </div>
-                    {canSeeWerewolves && isWerewolfRole && wordGuessed && (
-                      <button 
-                        className="btn" 
-                        onClick={() => handleSelectPlayer(player.id)}
-                        style={{ marginTop: '5px', padding: '5px 10px', fontSize: '12px' }}
-                      >
-                        انتخاب به عنوان غیب‌گو
-                      </button>
+                    
+                    {timeLeft < 240 && !wordGuessed && (
+                      <div style={{ marginTop: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                          <button
+                            className="btn"
+                            onClick={() => handleVote(player.id)}
+                            style={{
+                              padding: '6px 12px',
+                              fontSize: '12px',
+                              background: myVote === player.id ? '#4CAF50' : '#2196f3',
+                              color: 'white'
+                            }}
+                          >
+                            {myVote === player.id ? '✓ رای دادید' : 'رای برای اعدام'}
+                          </button>
+                        </div>
+                        {voteCount > 0 && (
+                          <div style={{ width: '100%' }}>
+                            <div style={{
+                              background: '#e0e0e0',
+                              borderRadius: '10px',
+                              height: '8px',
+                              position: 'relative'
+                            }}>
+                              <div style={{
+                                background: '#ff5722',
+                                width: `${(voteCount / totalPlayers) * 100}%`,
+                                height: '100%',
+                                borderRadius: '10px',
+                                transition: 'width 0.3s'
+                              }}></div>
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#666', marginTop: '4px', textAlign: 'center' }}>
+                              {voteCount} رای ({Math.round((voteCount / totalPlayers) * 100)}%)
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     )}
-                    {currentPlayer && (currentPlayer.role === 'alpha-werewolf' || (currentPlayer.role === 'werewolf' && currentPlayer.isShahrdar)) && !isWerewolfRole && !wordGuessed && player.id !== playerId && (
+                    {/* Only alpha werewolf can kill seer during game - show kill button for all non-werewolf players */}
+                    {currentPlayer && currentPlayer.role === 'alpha-werewolf' && !isWerewolfRole && !wordGuessed && player.id !== playerId && (
                       <button 
                         className="btn" 
                         onClick={() => handleSelectPlayer(player.id)}
                         style={{ marginTop: '5px', padding: '5px 10px', fontSize: '12px', background: '#d32f2f' }}
                       >
                         🔪 کشتن (غیب‌گو)
+                      </button>
+                    )}
+                    {/* Last chance for alpha after word guessed - only show on non-werewolf players */}
+                    {currentPlayer && currentPlayer.role === 'alpha-werewolf' && !isWerewolfRole && wordGuessed && player.id !== playerId && (
+                      <button 
+                        className="btn" 
+                        onClick={() => handleSelectPlayer(player.id)}
+                        style={{ marginTop: '5px', padding: '5px 10px', fontSize: '12px', background: '#ff9800' }}
+                      >
+                        انتخاب به عنوان غیب‌گو
                       </button>
                     )}
                   </div>
