@@ -58,7 +58,7 @@ function normalizePersian(input) {
 }
 
 io.on('connection', (socket) => {
-  socket.on('create-room', ({ playerName }) => {
+  socket.on('create-room', ({ playerName, uuid }) => {
     const roomCode = generateRoomCode();
     const playerId = socket.id;
     
@@ -69,7 +69,8 @@ io.on('connection', (socket) => {
       secretWord: null,
       rounds: 0,
       createdAt: Date.now(),
-      creatorId: playerId
+      creatorId: playerId,
+      creatorUUID: uuid || null
     });
     
     players.set(playerId, {
@@ -78,14 +79,16 @@ io.on('connection', (socket) => {
       roomCode: roomCode,
       role: null,
       isShahrdar: false,
-      questionsAsked: 0
+      questionsAsked: 0,
+      uuid: uuid || null,
+      connected: true
     });
     
     socket.join(roomCode);
     socket.emit('room-created', { roomCode, playerId });
   });
 
-  socket.on('join-room', ({ roomCode, playerName }) => {
+  socket.on('join-room', ({ roomCode, playerName, uuid }) => {
     const room = rooms.get(roomCode);
     if (!room) {
       socket.emit('error', { message: 'اتاق یافت نشد' });
@@ -98,18 +101,59 @@ io.on('connection', (socket) => {
     }
     
     const playerId = socket.id;
-    players.set(playerId, {
-      id: playerId,
-      name: playerName,
-      roomCode: roomCode,
-      role: null,
-      isShahrdar: false,
-      questionsAsked: 0
-    });
+    // Try to find existing by uuid in this room
+    let existing = null;
+    if (uuid) {
+      existing = Array.from(players.values()).find(p => p.roomCode === roomCode && p.uuid === uuid);
+    }
+    if (existing) {
+      // Re-associate socket id and update name
+      players.delete(existing.id);
+      existing.id = playerId;
+      existing.name = playerName;
+      existing.connected = true;
+      players.set(playerId, existing);
+      // If this player is the creator (by UUID), restore creatorId
+      if (room.creatorUUID === uuid) {
+        room.creatorId = playerId;
+      }
+    } else {
+      players.set(playerId, {
+        id: playerId,
+        name: playerName,
+        roomCode: roomCode,
+        role: null,
+        isShahrdar: false,
+        questionsAsked: 0,
+        uuid: uuid || null,
+        connected: true
+      });
+    }
     
     socket.join(roomCode);
     socket.emit('room-joined', { roomCode, playerId });
     
+    updateRoomPlayers(roomCode);
+  });
+
+  // Resume session using UUID
+  socket.on('resume-session', ({ roomCode, playerName, uuid }) => {
+    const room = rooms.get(roomCode);
+    if (!room || !uuid) return;
+    const existing = Array.from(players.values()).find(p => p.roomCode === roomCode && p.uuid === uuid);
+    if (!existing) return;
+    // Update socket id and optionally name
+    players.delete(existing.id);
+    existing.id = socket.id;
+    if (playerName) existing.name = playerName;
+    existing.connected = true;
+    players.set(existing.id, existing);
+    // If this player is the creator (by UUID), restore creatorId
+    if (room.creatorUUID === uuid) {
+      room.creatorId = socket.id;
+    }
+    socket.join(roomCode);
+    socket.emit('room-joined', { roomCode, playerId: existing.id });
     updateRoomPlayers(roomCode);
   });
 
@@ -464,8 +508,9 @@ io.on('connection', (socket) => {
     
     if (!room || !player) return;
     
-    // Only room creator can restart
-    if (room.creatorId !== socket.id) {
+    // Only room creator can restart (check by UUID or socket.id)
+    const isCreator = room.creatorId === socket.id || (player.uuid && room.creatorUUID === player.uuid);
+    if (!isCreator) {
       socket.emit('error', { message: 'فقط سازنده اتاق می‌تواند بازی را شروع کند' });
       return;
     }
@@ -489,15 +534,12 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     const player = players.get(socket.id);
     if (player) {
+      player.connected = false;
+      // keep the player to allow resume; re-store under same id
+      players.set(socket.id, player);
       const room = rooms.get(player.roomCode);
-      players.delete(socket.id);
-      
       if (room) {
         updateRoomPlayers(room.code);
-        
-        if (room.players.length === 0) {
-          rooms.delete(room.code);
-        }
       }
     }
   });
@@ -564,6 +606,26 @@ function updateRoomPlayers(roomCode) {
     creatorId: room.creatorId
   });
 }
+
+// Cleanup old rooms (older than 4 hours)
+function cleanupOldRooms() {
+  const now = Date.now();
+  const fourHoursAgo = now - (4 * 60 * 60 * 1000);
+  
+  for (const [roomCode, room] of rooms.entries()) {
+    if (room.createdAt < fourHoursAgo) {
+      // Remove all players in this room
+      const roomPlayers = Array.from(players.values()).filter(p => p.roomCode === roomCode);
+      roomPlayers.forEach(p => players.delete(p.id));
+      // Delete the room
+      rooms.delete(roomCode);
+      console.log(`Deleted old room: ${roomCode}`);
+    }
+  }
+}
+
+// Run cleanup every 1 minute
+setInterval(cleanupOldRooms, 60 * 1000);
 
 // Serve React app for all routes
 app.get('*', (req, res) => {

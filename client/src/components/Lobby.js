@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 
-function Lobby({ socket, playerName, setPlayerName }) {
+function Lobby({ socket, playerName, setPlayerName, playerUUID }) {
   const [roomCode, setRoomCode] = useState('');
   const [showJoin, setShowJoin] = useState(false);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const roomParam = urlParams.get('room');
-    
+
     if (roomParam) {
       setRoomCode(roomParam.toUpperCase());
       setShowJoin(true);
@@ -19,7 +19,8 @@ function Lobby({ socket, playerName, setPlayerName }) {
       alert('لطفاً نام خود را وارد کنید');
       return;
     }
-    socket.emit('create-room', { playerName });
+    const uuid = playerUUID || localStorage.getItem('playerUUID');
+    socket.emit('create-room', { playerName, uuid });
   };
 
   const handleJoinRoom = () => {
@@ -31,14 +32,15 @@ function Lobby({ socket, playerName, setPlayerName }) {
       alert('لطفاً کد اتاق را وارد کنید');
       return;
     }
-    socket.emit('join-room', { roomCode: roomCode.toUpperCase(), playerName });
+    const uuid = playerUUID || localStorage.getItem('playerUUID');
+    socket.emit('join-room', { roomCode: roomCode.toUpperCase(), playerName, uuid });
   };
 
   return (
     <div className="App">
       <div className="card">
         <h1>🐺 گرگینه کلمات 🐺</h1>
-        
+
         <div className="input-group">
           <input
             type="text"

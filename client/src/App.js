@@ -12,8 +12,19 @@ function App() {
   const [playerName, setPlayerName] = useState(
     localStorage.getItem('playerName') || ''
   );
+  const [playerUUID, setPlayerUUID] = useState(
+    localStorage.getItem('playerUUID') || ''
+  );
 
   useEffect(() => {
+    // Ensure persistent UUID
+    let uuid = localStorage.getItem('playerUUID');
+    if (!uuid) {
+      uuid = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      localStorage.setItem('playerUUID', uuid);
+    }
+    setPlayerUUID(uuid);
+
     const newSocket = io('http://localhost:3001');
     setSocket(newSocket);
 
@@ -21,12 +32,14 @@ function App() {
       setRoomCode(roomCode);
       setPlayerId(playerId);
       setCurrentView('waiting-room');
+      localStorage.setItem('lastRoomCode', roomCode);
     });
 
     newSocket.on('room-joined', ({ roomCode, playerId }) => {
       setRoomCode(roomCode);
       setPlayerId(playerId);
       setCurrentView('waiting-room');
+      localStorage.setItem('lastRoomCode', roomCode);
     });
 
     newSocket.on('game-started', () => {
@@ -35,6 +48,16 @@ function App() {
 
     newSocket.on('error', ({ message }) => {
       alert(message);
+    });
+
+    // Attempt resume on (re)connect
+    newSocket.on('connect', () => {
+      const savedRoom = localStorage.getItem('lastRoomCode');
+      const savedName = localStorage.getItem('playerName') || playerName;
+      const savedUUID = localStorage.getItem('playerUUID');
+      if (savedRoom && savedUUID && savedName) {
+        newSocket.emit('resume-session', { roomCode: savedRoom, playerName: savedName, uuid: savedUUID });
+      }
     });
 
     return () => newSocket.close();
@@ -54,6 +77,7 @@ function App() {
         socket={socket}
         playerName={playerName}
         setPlayerName={setPlayerName}
+        playerUUID={playerUUID}
       />
     );
   }
