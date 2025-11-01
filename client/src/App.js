@@ -25,8 +25,11 @@ function App() {
     }
     setPlayerUUID(uuid);
 
-    const serverPort = process.env.REACT_APP_SERVER_PORT || 3001;
-    const newSocket = io(`http://localhost:${serverPort}`);
+    // In development with proxy, use relative path. In production, connect to same server
+    const socketUrl = process.env.NODE_ENV === 'production' 
+      ? window.location.origin 
+      : `http://localhost:${process.env.REACT_APP_PORT || 3005}`;
+    const newSocket = io(socketUrl);
     setSocket(newSocket);
 
     newSocket.on('room-created', ({ roomCode, playerId }) => {
