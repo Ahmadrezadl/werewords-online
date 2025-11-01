@@ -25,7 +25,8 @@ function App() {
     }
     setPlayerUUID(uuid);
 
-    const newSocket = io('http://localhost:3001');
+    const serverPort = process.env.REACT_APP_SERVER_PORT || 3001;
+    const newSocket = io(`http://localhost:${serverPort}`);
     setSocket(newSocket);
 
     newSocket.on('room-created', ({ roomCode, playerId }) => {
