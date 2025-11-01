@@ -531,6 +531,29 @@ io.on('connection', (socket) => {
     updateRoomPlayers(roomCode);
   });
 
+  socket.on('leave-room', () => {
+    const player = players.get(socket.id);
+    if (!player) return;
+    
+    const room = rooms.get(player.roomCode);
+    if (!room) return;
+    
+    // If creator leaves, close the room
+    if (room.creatorId === socket.id) {
+      // Notify all players
+      io.to(player.roomCode).emit('room-closed', { message: 'سازنده اتاق خارج شد' });
+      // Remove all players from this room
+      const roomPlayers = Array.from(players.values()).filter(p => p.roomCode === player.roomCode);
+      roomPlayers.forEach(p => players.delete(p.id));
+      // Delete the room
+      rooms.delete(player.roomCode);
+    } else {
+      // Regular player leaves
+      players.delete(socket.id);
+      updateRoomPlayers(room.code);
+    }
+  });
+
   socket.on('disconnect', () => {
     const player = players.get(socket.id);
     if (player) {

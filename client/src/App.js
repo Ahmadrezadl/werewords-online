@@ -93,6 +93,7 @@ function App() {
         roomCode={roomCode}
         playerId={playerId}
         playerName={playerName}
+        setCurrentView={setCurrentView}
       />
     );
   }
@@ -105,6 +106,7 @@ function App() {
         playerId={playerId}
         playerName={playerName}
         isPlaying={true}
+        setCurrentView={setCurrentView}
       />
     );
   }
