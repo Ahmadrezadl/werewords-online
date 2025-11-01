@@ -225,9 +225,41 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false })
 
   const copyRoomLink = () => {
     const link = `${window.location.origin}?room=${roomCode}`;
-    navigator.clipboard.writeText(link);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    
+    // Try modern clipboard API first
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(link).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }).catch(() => {
+        // Fallback to old method
+        fallbackCopyTextToClipboard(link);
+      });
+    } else {
+      // Fallback for browsers without clipboard API
+      fallbackCopyTextToClipboard(link);
+    }
+  };
+  
+  const fallbackCopyTextToClipboard = (text) => {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-999999px';
+    textArea.style.top = '-999999px';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    
+    try {
+      document.execCommand('copy');
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy text:', err);
+    }
+    
+    document.body.removeChild(textArea);
   };
 
   const formatTime = (seconds) => {
