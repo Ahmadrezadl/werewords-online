@@ -206,7 +206,7 @@ io.on('connection', (socket) => {
 
   socket.on('ask-question', ({ roomCode, question }) => {
     const player = players.get(socket.id);
-    if (!player || player.questionsAsked >= 10) {
+    if (!player || player.questionsAsked >= 20) {
       socket.emit('error', { message: 'شما نمی‌توانید سوال بیشتری بپرسید' });
       return;
     }
@@ -248,7 +248,7 @@ io.on('connection', (socket) => {
       io.to(roomCode).emit('question-asked', {
         playerName: player.name,
         question: `پرسید: ${question}`,
-        questionsLeft: 10 - player.questionsAsked,
+        questionsLeft: 20 - player.questionsAsked,
         isGuess: false
       });
     }

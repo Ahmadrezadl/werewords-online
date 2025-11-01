@@ -4,7 +4,7 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
   const [players, setPlayers] = useState([]);
   const [currentPlayer, setCurrentPlayer] = useState(null);
   const [questions, setQuestions] = useState([]);
-  const [timeLeft, setTimeLeft] = useState(300);
+  const [timeLeft, setTimeLeft] = useState(600); // 10 minutes
   const [questionInput, setQuestionInput] = useState('');
   const [copied, setCopied] = useState(false);
   const [creatorId, setCreatorId] = useState(null);
@@ -552,11 +552,11 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
                         )}
                       </div>
                       <span style={{ fontSize: '12px', color: '#666' }}>
-                        {questionsAsked}/10 سوال
+                        {questionsAsked}/20 سوال
                       </span>
                     </div>
                     
-                    {timeLeft < 240 && !wordGuessed && player.id !== playerId && (
+                    {timeLeft < 480 && !wordGuessed && player.id !== playerId && (  // After 2 minutes (8 minutes left)
                       <div style={{ marginTop: '10px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
                           <button
@@ -708,18 +708,18 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
             <div style={{ textAlign: 'right', lineHeight: '1.8' }}>
               <section style={{ marginBottom: '25px', padding: '15px', background: '#f3e5f5', borderRadius: '10px' }}>
                 <h3 style={{ color: '#764ba2', marginBottom: '10px' }}>🎯 هدف بازی</h3>
-                <p>یک کلمه مخفی وجود دارد که بازیکنان باید آن را پیدا کنند!</p>
+                <p>یک کلمه مخفی وجود دارد که شهروندان باید آن را پیدا کنند!</p>
               </section>
 
               <section style={{ marginBottom: '25px', padding: '15px', background: '#fff3e0', borderRadius: '10px' }}>
                 <h3 style={{ color: '#f57c00', marginBottom: '15px' }}>👥 نقش‌ها</h3>
                 <div style={{ marginBottom: '10px', padding: '10px', background: 'white', borderRadius: '8px' }}>
                   <strong>🌙 آلفا گرگینه</strong>
-                  <p style={{ margin: '5px 0 0 0', fontSize: '14px' }}>کلمه را می‌داند. در پایان یکی را به عنوان غیب‌گو اعدام می‌کند.</p>
+                  <p style={{ margin: '5px 0 0 0', fontSize: '14px' }}>کلمه را می‌داند و گرگینه های درگیر را میشناسد. هدفش پیدا کردن غیب گو و کشتن آن است..</p>
                 </div>
                 <div style={{ marginBottom: '10px', padding: '10px', background: 'white', borderRadius: '8px' }}>
                   <strong>🐺 گرگینه</strong>
-                  <p style={{ margin: '5px 0 0 0', fontSize: '14px' }}>کلمه را می‌داند و تیم گرگینه‌ها را می‌بیند.</p>
+                  <p style={{ margin: '5px 0 0 0', fontSize: '14px' }}>کلمه را می‌داند و تیم گرگینه‌ها را می‌بیند. میتواند با سوال هایش شهرواندان را گمراه کند.</p>
                 </div>
                 <div style={{ marginBottom: '10px', padding: '10px', background: 'white', borderRadius: '8px' }}>
                   <strong>🔮 غیب‌گو</strong>
@@ -731,20 +731,18 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
                 </div>
                 <div style={{ padding: '10px', background: '#fff3e0', borderRadius: '8px', border: '2px solid #ff9800' }}>
                   <strong>👑 شهردار</strong>
-                  <p style={{ margin: '5px 0 0 0', fontSize: '14px' }}>نام مشخص است! با ایموجی به هر سوال جواب می‌دهد.</p>
+                  <p style={{ margin: '5px 0 0 0', fontSize: '14px' }}>این نقش به صورت اضافه بر نقش اصلی به بازیکن اضافه میشود! با ایموجی به هر سوال جواب می‌دهد.</p>
                 </div>
               </section>
 
               <section style={{ marginBottom: '25px', padding: '15px', background: '#e8f5e9', borderRadius: '10px' }}>
                 <h3 style={{ color: '#4caf50', marginBottom: '15px' }}>🎮 قوانین</h3>
                 <ul style={{ margin: 0, paddingRight: '20px' }}>
-                  <li style={{ marginBottom: '8px' }}>⏱️ هر بازیکن ۳ دقیقه دارد و ۱۰ سوال</li>
-                  <li style={{ marginBottom: '8px' }}>❓ فقط شهروندان سوال می‌پرسند</li>
+                  <li style={{ marginBottom: '8px' }}>⏱️ هر بازی 10 دقیقه است و هر بازیکن میتواند تا 20 سوال بپرسد</li>
                   <li style={{ marginBottom: '8px' }}>👑 شهردار با ایموجی پاسخ می‌دهد</li>
                   <li style={{ marginBottom: '8px' }}>🎯 اگر کلمه پیدا شود، آلفا گرگینه ۶۰ ثانیه وقت دارد</li>
                   <li style={{ marginBottom: '8px' }}>🔪 آلفا باید غیب‌گو را پیدا کند</li>
-                  <li style={{ marginBottom: '8px' }}>⏰ بعد از ۳ دقیقه نوبت به رای‌گیری می‌رسد</li>
-                  <li>🗳️ شما نمی‌توانید به خودتان رای دهید</li>
+                  <li style={{ marginBottom: '8px' }}>⏰ بعد از دو دقیقه اول بازی، رای گیری برای اعدام گرگینه باز میشود</li>
                 </ul>
               </section>
 
@@ -753,15 +751,16 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
                 <div style={{ marginBottom: '10px', padding: '10px', background: 'white', borderRadius: '8px', borderLeft: '4px solid #f44336' }}>
                   <strong>🐺 گرگینه‌ها برنده می‌شوند اگر:</strong>
                   <ul style={{ margin: '5px 0 0 0', paddingRight: '20px', fontSize: '14px' }}>
-                    <li>غیب‌گو اعدام شود</li>
+                    <li>غیب‌گو کشته شود</li>
                     <li>شهروندی توسط مردم اعدام شود</li>
+                    <li>وقت شهروندان برای پیدا کردن کلمه تمام شود</li>
                   </ul>
                 </div>
                 <div style={{ padding: '10px', background: 'white', borderRadius: '8px', borderLeft: '4px solid #4caf50' }}>
                   <strong>🏘️ شهروندان برنده می‌شوند اگر:</strong>
                   <ul style={{ margin: '5px 0 0 0', paddingRight: '20px', fontSize: '14px' }}>
                     <li>همه گرگینه‌ها اعدام شوند</li>
-                    <li>زمان آلفا گرگینه تمام شود</li>
+                    <li>کلمه را حدس بزندند و غیب گو کشته نشود</li>
                     <li>آلفا غیب‌گو را اشتباه شناسایی کند</li>
                   </ul>
                 </div>
