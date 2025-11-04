@@ -30,6 +30,7 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
       setCreatorId(creatorId);
       const me = roomPlayers.find(p => p.id === playerId);
       setCurrentPlayer(me);
+      console.log('room-updated received:', { me, roomPlayers, playerId });
       // Do not clear word or questions on room-updated; only reflect roster/creator changes
     });
 
@@ -37,6 +38,7 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
       setPlayers(gamePlayers);
       const me = gamePlayers.find(p => p.id === playerId);
       setCurrentPlayer(me);
+      console.log('game-started received:', { me, gamePlayers, playerId });
       if (wordLength) {
         setWordLength(wordLength);
       }
@@ -484,6 +486,12 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
           </div>
         ) : (
           <div style={{ display: 'flex', gap: '20px', flex: '1', overflow: 'hidden', minHeight: 0 }}>
+            {!currentPlayer ? (
+              <div style={{ flex: '1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <p>در حال بارگذاری...</p>
+              </div>
+            ) : (
+              <>
             <div style={{ flex: '1', minWidth: '400px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
               <div className="game-timer" style={{ marginBottom: '10px' }}>
                 ⏱️ زمان باقی‌مانده: {formatTime(timeLeft)}
@@ -692,6 +700,8 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
               })}
               </div>
             </div>
+              </>
+            )}
           </div>
         )}
       </div>

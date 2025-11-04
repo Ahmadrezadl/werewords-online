@@ -90,6 +90,9 @@ io.on('connection', (socket) => {
     
     socket.join(roomCode);
     socket.emit('room-created', { roomCode, playerId });
+    
+    // Send initial room state to the creator
+    updateRoomPlayers(roomCode);
   });
 
   socket.on('join-room', ({ roomCode, playerName, uuid }) => {
@@ -137,8 +140,8 @@ io.on('connection', (socket) => {
     socket.join(roomCode);
     socket.emit('room-joined', { roomCode, playerId });
     
-    // Do not broadcast room-updated on resume to avoid spamming everyone
-    // updateRoomPlayers(roomCode);
+    // Send initial room state to the joining player
+    updateRoomPlayers(roomCode);
   });
 
   // Resume session using UUID
@@ -236,6 +239,9 @@ io.on('connection', (socket) => {
       socket.emit('questions-sync', {
         questions: room.questions || []
       });
+      
+      // Send initial room state to resuming player (with filtered roles)
+      updateRoomPlayers(roomCode);
       
       // Send werewolf teammates if player is a werewolf
       if (existing.role === 'werewolf' || existing.role === 'alpha-werewolf') {
