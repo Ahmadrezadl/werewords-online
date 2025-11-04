@@ -154,6 +154,31 @@ io.on('connection', (socket) => {
     }
     socket.join(roomCode);
     socket.emit('room-joined', { roomCode, playerId: existing.id });
+    
+    // If game is playing and player should see secret word, send it
+    if (room.gameState === 'playing' && room.secretWord) {
+      const shouldSeeWord = existing.role === 'seer' || 
+                           existing.role === 'werewolf' || 
+                           existing.role === 'alpha-werewolf' || 
+                           existing.isShahrdar;
+      if (shouldSeeWord) {
+        socket.emit('secret-word-revealed', {
+          secretWord: room.secretWord,
+          role: existing.role
+        });
+      }
+      
+      // Send werewolf teammates if player is a werewolf
+      if (existing.role === 'werewolf' || existing.role === 'alpha-werewolf') {
+        const roomPlayers = Array.from(players.values()).filter(p => p.roomCode === roomCode);
+        const werewolves = roomPlayers.filter(p => p.role === 'werewolf' || p.role === 'alpha-werewolf');
+        const teammates = werewolves.filter(w => w.id !== existing.id);
+        socket.emit('werewolf-teammates', {
+          teammates: teammates.map(t => ({ id: t.id, name: t.name }))
+        });
+      }
+    }
+    
     updateRoomPlayers(roomCode);
   });
 
@@ -173,10 +198,13 @@ io.on('connection', (socket) => {
     room.secretWord = GAME_WORDS[Math.floor(Math.random() * GAME_WORDS.length)];
     room.rounds = 0;
     
+    // Refresh roomPlayers after roles are assigned to ensure we have latest data
+    const updatedRoomPlayers = Array.from(players.values()).filter(p => p.roomCode === roomCode);
+    
     // Send secret word to seer, werewolves, and shahrdar
-    const seers = roomPlayers.filter(p => p.role === 'seer');
-    const werewolves = roomPlayers.filter(p => p.role === 'werewolf' || p.role === 'alpha-werewolf');
-    const shahrdars = roomPlayers.filter(p => p.isShahrdar);
+    const seers = updatedRoomPlayers.filter(p => p.role === 'seer');
+    const werewolves = updatedRoomPlayers.filter(p => p.role === 'werewolf' || p.role === 'alpha-werewolf');
+    const shahrdars = updatedRoomPlayers.filter(p => p.isShahrdar);
     
     [...seers, ...werewolves, ...shahrdars].forEach(player => {
       io.to(player.id).emit('secret-word-revealed', {
@@ -194,7 +222,7 @@ io.on('connection', (socket) => {
     });
     
     io.to(roomCode).emit('game-started', {
-      players: roomPlayers.map(p => ({
+      players: updatedRoomPlayers.map(p => ({
         id: p.id,
         name: p.name,
         role: p.role,
