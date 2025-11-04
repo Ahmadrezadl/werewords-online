@@ -113,6 +113,26 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
       }, 1000);
     });
 
+    socket.on('alpha-timer-update', ({ remaining }) => {
+      setAlphaLastChanceTimer(remaining);
+      // Restart timer if not already running
+      if (!alphaTimerRef.current && remaining > 0) {
+        alphaTimerRef.current = setInterval(() => {
+          setAlphaLastChanceTimer(prev => {
+            const newValue = prev - 1;
+            if (newValue <= 0) {
+              if (alphaTimerRef.current) {
+                clearInterval(alphaTimerRef.current);
+                alphaTimerRef.current = null;
+              }
+              return 0;
+            }
+            return newValue;
+          });
+        }, 1000);
+      }
+    });
+
     socket.on('game-reset', () => {
       setGameResult(null);
       setSecretWord(null);
@@ -203,6 +223,7 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
       socket.off('player-killed');
       socket.off('room-closed');
       socket.off('game-reset');
+      socket.off('alpha-timer-update');
     };
   }, [socket, playerId, setCurrentView]);
 

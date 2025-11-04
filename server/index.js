@@ -71,7 +71,9 @@ io.on('connection', (socket) => {
       rounds: 0,
       createdAt: Date.now(),
       creatorId: playerId,
-      creatorUUID: uuid || null
+      creatorUUID: uuid || null,
+      wordGuessed: false,
+      alphaTimerStartTime: null
     });
     
     players.set(playerId, {
@@ -195,18 +197,37 @@ io.on('connection', (socket) => {
         wordLength: room.secretWord.length
       });
       
-      // Send secret word if player should see it
+      // Send secret word if player should see it (after a small delay)
       const shouldSeeWord = existing.role === 'seer' || 
                            existing.role === 'werewolf' || 
                            existing.role === 'alpha-werewolf' || 
                            existing.isShahrdar;
       if (shouldSeeWord) {
-        // Send immediately - socket is already joined
-        console.log(`Resume: Sending secret word to ${existing.name} (${existing.role}, shahrdar: ${existing.isShahrdar}): ${room.secretWord}`);
-        socket.emit('secret-word-revealed', {
-          secretWord: room.secretWord,
-          role: existing.role
+        setTimeout(() => {
+          console.log(`Resume: Sending secret word to ${existing.name} (${existing.role}, shahrdar: ${existing.isShahrdar}): ${room.secretWord}`);
+          socket.emit('secret-word-revealed', {
+            secretWord: room.secretWord,
+            role: existing.role
+          });
+        }, 100);
+      }
+      
+      // Check if word was already guessed and restore timer state
+      if (room.wordGuessed && room.alphaTimerStartTime) {
+        // Calculate remaining time
+        const elapsed = Math.floor((Date.now() - room.alphaTimerStartTime) / 1000);
+        const remaining = Math.max(0, 60 - elapsed);
+        
+        // Send word-guessed event to restore state
+        socket.emit('word-guessed', {
+          guesserName: '',
+          secretWord: room.secretWord
         });
+        
+        // Set timer to remaining time
+        setTimeout(() => {
+          socket.emit('alpha-timer-update', { remaining });
+        }, 150);
       }
       
       // Send werewolf teammates if player is a werewolf
@@ -245,6 +266,8 @@ io.on('connection', (socket) => {
     room.gameState = 'playing';
     room.secretWord = GAME_WORDS[Math.floor(Math.random() * GAME_WORDS.length)];
     room.rounds = 0;
+    room.wordGuessed = false;
+    room.alphaTimerStartTime = null;
     
     // Refresh roomPlayers after roles are assigned to ensure we have latest data
     const updatedRoomPlayers = Array.from(players.values()).filter(p => p.roomCode === roomCode);
@@ -289,10 +312,25 @@ io.on('connection', (socket) => {
         };
       });
       
+      // Send game-started first
       io.to(player.id).emit('game-started', {
         players: visiblePlayers,
         wordLength: room.secretWord.length
       });
+      
+      // Then send secret word if player should see it (after a small delay to ensure game-started is processed)
+      const shouldSeeWord = player.role === 'seer' || 
+                           player.role === 'werewolf' || 
+                           player.role === 'alpha-werewolf' || 
+                           player.isShahrdar;
+      if (shouldSeeWord) {
+        setTimeout(() => {
+          io.to(player.id).emit('secret-word-revealed', {
+            secretWord: room.secretWord,
+            role: player.role
+          });
+        }, 100);
+      }
     });
   });
 
@@ -319,6 +357,10 @@ io.on('connection', (socket) => {
         guesserName: player.name,
         secretWord: room.secretWord
       });
+      
+      // Mark word as guessed and start alpha timer
+      room.wordGuessed = true;
+      room.alphaTimerStartTime = Date.now();
       
       const alphaWerewolf = Array.from(players.values()).find(p => p.roomCode === roomCode && p.role === 'alpha-werewolf');
       if (alphaWerewolf) {
@@ -612,6 +654,8 @@ io.on('connection', (socket) => {
     room.gameState = 'waiting';
     room.secretWord = null;
     room.votes = {};
+    room.wordGuessed = false;
+    room.alphaTimerStartTime = null;
     
     // Reset all players
     const roomPlayers = Array.from(players.values()).filter(p => p.roomCode === roomCode);
