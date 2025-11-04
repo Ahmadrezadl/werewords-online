@@ -25,7 +25,7 @@ const players = new Map();
 const GAME_WORDS = [
   'کتاب', 'موسیقی', 'درخت', 'آسمان', 'اسباب‌بازی', 'کامپیوتر', 'گل', 'دریا',
   'کوه', 'خانه', 'دانشگاه', 'پارک', 'شیر', 'طوطی', 'دست', 'پا', 'چشم',
-  'بینایی', 'رنگ', 'نور', 'صدای', 'فامیل', 'دوست', 'آموزش', 'آشپزی',
+  'بینایی', 'رنگ', 'نور', 'فامیل', 'دوست', 'آموزش', 'آشپزی',
   'خورشید', 'ماه', 'ستاره', 'ابر', 'باران', 'برف', 'باد', 'طوفان',
   'خاک', 'آب', 'آتش', 'یخ', 'برق', 'شن', 'سنگ', 'گیاه',
   'پروانه', 'مورچه', 'زنبور', 'مگس', 'پشه', 'کرم', 'مار', 'عنکبوت',
@@ -363,7 +363,8 @@ io.on('connection', (socket) => {
               name: p.name,
               role: p.role,
               isShahrdar: p.isShahrdar
-            }))
+            })),
+            secretWord: room.secretWord
           });
           
           room.gameState = 'waiting';
@@ -383,7 +384,8 @@ io.on('connection', (socket) => {
                 name: p.name,
                 role: p.role,
                 isShahrdar: p.isShahrdar
-              }))
+              })),
+              secretWord: room.secretWord
             });
             
             room.gameState = 'waiting';
@@ -416,7 +418,10 @@ io.on('connection', (socket) => {
           name: p.name,
           role: p.role,
           isShahrdar: p.isShahrdar
-        }))
+        })),
+        secretWord: room.secretWord,
+        killedBy: player.name,
+        killedPlayer: target.name
       });
       
       room.gameState = 'waiting';
@@ -429,7 +434,10 @@ io.on('connection', (socket) => {
           name: p.name,
           role: p.role,
           isShahrdar: p.isShahrdar
-        }))
+        })),
+        secretWord: room.secretWord,
+        killedBy: player.name,
+        killedPlayer: target.name
       });
       
       room.gameState = 'waiting';
@@ -458,7 +466,10 @@ io.on('connection', (socket) => {
           name: p.name,
           role: p.role,
           isShahrdar: p.isShahrdar
-        }))
+        })),
+        secretWord: room.secretWord,
+        killedBy: player.name,
+        killedPlayer: target.name
       });
       
       room.gameState = 'waiting';
@@ -471,7 +482,10 @@ io.on('connection', (socket) => {
           name: p.name,
           role: p.role,
           isShahrdar: p.isShahrdar
-        }))
+        })),
+        secretWord: room.secretWord,
+        killedBy: player.name,
+        killedPlayer: target.name
       });
       
       room.gameState = 'waiting';
@@ -496,7 +510,8 @@ io.on('connection', (socket) => {
         name: p.name,
         role: p.role,
         isShahrdar: p.isShahrdar
-      }))
+      })),
+      secretWord: room.secretWord
     });
     
     room.gameState = 'waiting';
@@ -527,6 +542,9 @@ io.on('connection', (socket) => {
       p.isShahrdar = false;
       p.questionsAsked = 0;
     });
+    
+    // Notify all clients to clear game result
+    io.to(roomCode).emit('game-reset');
     
     updateRoomPlayers(roomCode);
   });
@@ -576,6 +594,13 @@ function assignRoles(roomCode, roomPlayersArray) {
   const werewolvesCount = Math.floor(roomPlayersArray.length / 3);
   const indexes = Array.from({ length: roomPlayersArray.length }, (_, i) => i);
   
+  // Reset all roles and shahrdar flags first
+  roomPlayersArray.forEach(p => {
+    p.role = null;
+    p.isShahrdar = false;
+    p.questionsAsked = 0;
+  });
+  
   // Shuffle and assign roles
   shuffleArray(indexes);
   
@@ -597,7 +622,7 @@ function assignRoles(roomCode, roomPlayersArray) {
     roomPlayersArray[indexes[idx++]].role = 'citizen';
   }
   
-  // Assign Shahrdar (random)
+  // Assign Shahrdar (random) - only one!
   const shahrdarIndex = Math.floor(Math.random() * roomPlayersArray.length);
   roomPlayersArray[shahrdarIndex].isShahrdar = true;
   
@@ -623,8 +648,8 @@ function updateRoomPlayers(roomCode) {
     players: roomPlayers.map(p => ({
       id: p.id,
       name: p.name,
-      role: p.gameState === 'playing' ? p.role : null,
-      isShahrdar: p.isShahrdar
+      role: room.gameState === 'playing' ? p.role : null,
+      isShahrdar: room.gameState === 'playing' ? p.isShahrdar : false
     })),
     creatorId: room.creatorId
   });

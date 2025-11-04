@@ -30,6 +30,18 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
       setCreatorId(creatorId);
       const me = roomPlayers.find(p => p.id === playerId);
       setCurrentPlayer(me);
+      // If game is not playing, clear all game-related state
+      if (!isPlaying) {
+        setGameResult(null);
+        setSecretWord(null);
+        setWordGuessed(false);
+        setQuestions([]);
+        setPlayerQuestionsAsked({});
+        setVotes({});
+        setMyVote(null);
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        if (alphaTimerRef.current) clearInterval(alphaTimerRef.current);
+      }
     });
 
     socket.on('game-started', ({ players: gamePlayers, wordLength }) => {
@@ -43,6 +55,14 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
       setPlayerQuestionsAsked({});
       setWordGuessed(false);
       setAlphaLastChanceTimer(60);
+      setSecretWord(null);
+      setQuestions([]);
+      setVotes({});
+      setMyVote(null);
+      setTimeLeft(600);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
       if (alphaTimerRef.current) {
         clearInterval(alphaTimerRef.current);
       }
@@ -87,16 +107,31 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
       }, 1000);
     });
 
+    socket.on('game-reset', () => {
+      setGameResult(null);
+      setSecretWord(null);
+      setWordGuessed(false);
+      setQuestions([]);
+      setPlayerQuestionsAsked({});
+      setVotes({});
+      setMyVote(null);
+      setTimeLeft(600);
+      setAlphaLastChanceTimer(60);
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (alphaTimerRef.current) clearInterval(alphaTimerRef.current);
+    });
+
     socket.on('alpha-last-chance-opportunity', ({ message }) => {
       alert(message);
     });
 
-    socket.on('game-ended', ({ winner, reason, roles }) => {
+    socket.on('game-ended', ({ winner, reason, roles, secretWord, killedBy, killedPlayer }) => {
       setSecretWord(null);
       setWordGuessed(false);
       setQuestions([]);
       if (intervalRef.current) clearInterval(intervalRef.current);
-      setGameResult({ winner, reason, roles });
+      if (alphaTimerRef.current) clearInterval(alphaTimerRef.current);
+      setGameResult({ winner, reason, roles, secretWord, killedBy, killedPlayer });
     });
 
     socket.on('word-guess-wrong', ({ guesserName, guess }) => {
@@ -161,6 +196,7 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
       socket.off('vote-updated');
       socket.off('player-killed');
       socket.off('room-closed');
+      socket.off('game-reset');
     };
   }, [socket, playerId, setCurrentView]);
 
@@ -311,6 +347,23 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
           <h2>{gameResult.winner === 'werewolves' ? 'گرگینه‌ها برنده شدند!' : 'شهروندان برنده شدند!'}</h2>
           <p style={{ fontSize: '18px', margin: '20px 0' }}>{gameResult.reason}</p>
           
+          {gameResult.secretWord && (
+            <div style={{ marginTop: '20px', padding: '15px', background: '#e8f5e9', borderRadius: '10px' }}>
+              <h3 style={{ marginTop: 0 }}>کلمه:</h3>
+              <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#4CAF50' }}>
+                {gameResult.secretWord}
+              </div>
+            </div>
+          )}
+          
+          {gameResult.killedBy && gameResult.killedPlayer && (
+            <div style={{ marginTop: '20px', padding: '15px', background: '#ffebee', borderRadius: '10px' }}>
+              <p style={{ fontSize: '18px', margin: 0 }}>
+                {gameResult.killedBy} بازیکن {gameResult.killedPlayer} را خورد
+              </p>
+            </div>
+          )}
+          
           <div style={{ marginTop: '30px', textAlign: 'right' }}>
             <h3>نقش‌های بازیکنان:</h3>
             <div style={{ background: '#f5f5f5', padding: '15px', borderRadius: '10px', marginTop: '10px' }}>
@@ -413,9 +466,9 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
                 ⏱️ زمان باقی‌مانده: {formatTime(timeLeft)}
               </div>
 
-              {wordGuessed && currentPlayer && currentPlayer.role === 'alpha-werewolf' && (
+              {wordGuessed && (
                 <div className="game-timer" style={{ marginBottom: '10px', background: '#ff9800', color: 'white' }}>
-                  🔴 زمان شما: {formatTime(alphaLastChanceTimer)} {alphaLastChanceTimer <= 10 && alphaLastChanceTimer > 0 && '(عجله کنید!)'}
+                  🔴 زمان آلفا گرگینه: {formatTime(alphaLastChanceTimer)} {alphaLastChanceTimer <= 10 && alphaLastChanceTimer > 0 && '(عجله کنید!)'}
                 </div>
               )}
 
