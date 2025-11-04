@@ -30,18 +30,7 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
       setCreatorId(creatorId);
       const me = roomPlayers.find(p => p.id === playerId);
       setCurrentPlayer(me);
-      // If game is not playing, clear all game-related state
-      if (!isPlaying) {
-        setGameResult(null);
-        setSecretWord(null);
-        setWordGuessed(false);
-        setQuestions([]);
-        setPlayerQuestionsAsked({});
-        setVotes({});
-        setMyVote(null);
-        if (intervalRef.current) clearInterval(intervalRef.current);
-        if (alphaTimerRef.current) clearInterval(alphaTimerRef.current);
-      }
+      // Do not clear word or questions on room-updated; only reflect roster/creator changes
     });
 
     socket.on('game-started', ({ players: gamePlayers, wordLength }) => {

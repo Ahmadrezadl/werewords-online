@@ -137,7 +137,8 @@ io.on('connection', (socket) => {
     socket.join(roomCode);
     socket.emit('room-joined', { roomCode, playerId });
     
-    updateRoomPlayers(roomCode);
+    // Do not broadcast room-updated on resume to avoid spamming everyone
+    // updateRoomPlayers(roomCode);
   });
 
   // Resume session using UUID
@@ -725,10 +726,8 @@ io.on('connection', (socket) => {
       player.connected = false;
       // keep the player to allow resume; re-store under same id
       players.set(socket.id, player);
-      const room = rooms.get(player.roomCode);
-      if (room) {
-        updateRoomPlayers(room.code);
-      }
+      // Do not broadcast immediately on disconnect to prevent spam during refresh
+      // Actual roster updates will occur on leave-room or after restart-game
     }
   });
 });
