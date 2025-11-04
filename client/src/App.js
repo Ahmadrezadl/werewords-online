@@ -39,10 +39,11 @@ function App() {
       localStorage.setItem('lastRoomCode', roomCode);
     });
 
-    newSocket.on('room-joined', ({ roomCode, playerId }) => {
+    newSocket.on('room-joined', ({ roomCode, playerId, gameState, isPlaying }) => {
       setRoomCode(roomCode);
       setPlayerId(playerId);
-      setCurrentView('waiting-room');
+      // If game is already playing, go to game view, otherwise waiting room
+      setCurrentView(isPlaying ? 'game' : 'waiting-room');
       localStorage.setItem('lastRoomCode', roomCode);
     });
 

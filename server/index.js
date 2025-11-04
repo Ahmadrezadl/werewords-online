@@ -37,7 +37,9 @@ const GAME_WORDS = [
   'آب', 'چای', 'قهوه', 'شیر', 'آب‌میوه', 'قاشق', 'چنگال', 'چاقو',
   'بشقاب', 'لیوان', 'صندلی', 'میز', 'تخت', 'مبل', 'کمد', 'چراغ',
   'تلویزیون', 'رادیو', 'موبایل', 'دوربین', 'کیف', 'کفش', 'کت', 'شلوار',
-  'کراوات', 'کمربند', 'ساعت', 'عینک', 'کلاه', 'دستکش', 'جوراب', 'دمپایی'
+  'کراوات', 'کمربند', 'ساعت', 'عینک', 'کلاه', 'دستکش', 'جوراب', 'دمپایی',
+  'موز', 'پرتقال', 'نارنگی', 'لیمو', 'انار', 'هویج', 'خیار', 'گوجه', 'پیاز',
+  'سبزی', 'فلفل', 'نان', 'برنج', 'پاستا', 'سوپ', 'پیتزا',
 ];
 
 // Normalize Persian text for robust equality checks
@@ -153,15 +155,37 @@ io.on('connection', (socket) => {
       room.creatorId = socket.id;
     }
     socket.join(roomCode);
-    socket.emit('room-joined', { roomCode, playerId: existing.id });
     
-    // If game is playing and player should see secret word, send it
+    // Send response with game state info
+    socket.emit('room-joined', { 
+      roomCode, 
+      playerId: existing.id,
+      gameState: room.gameState,
+      isPlaying: room.gameState === 'playing'
+    });
+    
+    // If game is playing, send full game state
     if (room.gameState === 'playing' && room.secretWord) {
+      const roomPlayers = Array.from(players.values()).filter(p => p.roomCode === roomCode);
+      
+      // Send game-started event to put client in game view
+      socket.emit('game-started', {
+        players: roomPlayers.map(p => ({
+          id: p.id,
+          name: p.name,
+          role: p.role,
+          isShahrdar: p.isShahrdar
+        })),
+        wordLength: room.secretWord.length
+      });
+      
+      // Send secret word if player should see it
       const shouldSeeWord = existing.role === 'seer' || 
                            existing.role === 'werewolf' || 
                            existing.role === 'alpha-werewolf' || 
                            existing.isShahrdar;
       if (shouldSeeWord) {
+        // Send immediately - socket is already joined
         socket.emit('secret-word-revealed', {
           secretWord: room.secretWord,
           role: existing.role
@@ -170,7 +194,6 @@ io.on('connection', (socket) => {
       
       // Send werewolf teammates if player is a werewolf
       if (existing.role === 'werewolf' || existing.role === 'alpha-werewolf') {
-        const roomPlayers = Array.from(players.values()).filter(p => p.roomCode === roomCode);
         const werewolves = roomPlayers.filter(p => p.role === 'werewolf' || p.role === 'alpha-werewolf');
         const teammates = werewolves.filter(w => w.id !== existing.id);
         socket.emit('werewolf-teammates', {
@@ -206,19 +229,27 @@ io.on('connection', (socket) => {
     const werewolves = updatedRoomPlayers.filter(p => p.role === 'werewolf' || p.role === 'alpha-werewolf');
     const shahrdars = updatedRoomPlayers.filter(p => p.isShahrdar);
     
+    // Send secret word to players who should see it
     [...seers, ...werewolves, ...shahrdars].forEach(player => {
-      io.to(player.id).emit('secret-word-revealed', {
-        secretWord: room.secretWord,
-        role: player.role
-      });
+      // Get the socket for this player
+      const playerSocket = io.sockets.sockets.get(player.id);
+      if (playerSocket) {
+        playerSocket.emit('secret-word-revealed', {
+          secretWord: room.secretWord,
+          role: player.role
+        });
+      }
     });
     
     // Send werewolf teammates to each werewolf
     werewolves.forEach(werewolf => {
       const teammates = werewolves.filter(w => w.id !== werewolf.id);
-      io.to(werewolf.id).emit('werewolf-teammates', {
-        teammates: teammates.map(t => ({ id: t.id, name: t.name }))
-      });
+      const werewolfSocket = io.sockets.sockets.get(werewolf.id);
+      if (werewolfSocket) {
+        werewolfSocket.emit('werewolf-teammates', {
+          teammates: teammates.map(t => ({ id: t.id, name: t.name }))
+        });
+      }
     });
     
     io.to(roomCode).emit('game-started', {
