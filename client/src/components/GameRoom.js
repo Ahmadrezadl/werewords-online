@@ -55,7 +55,12 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
       setPlayerQuestionsAsked({});
       setWordGuessed(false);
       setAlphaLastChanceTimer(60);
-      setSecretWord(null);
+      // Clear secretWord only if player shouldn't see it (secret-word-revealed will set it for those who should)
+      // Check if current player should see word based on role
+      const shouldSeeWord = me && (me.role === 'seer' || me.role === 'werewolf' || me.role === 'alpha-werewolf' || me.isShahrdar);
+      if (!shouldSeeWord) {
+        setSecretWord(null);
+      }
       setQuestions([]);
       setVotes({});
       setMyVote(null);
@@ -69,6 +74,7 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
     });
 
     socket.on('secret-word-revealed', ({ secretWord, role }) => {
+      console.log(`Received secret-word-revealed: ${secretWord}, role: ${role}`);
       setSecretWord(secretWord);
       setWordLength(secretWord.length);
     });

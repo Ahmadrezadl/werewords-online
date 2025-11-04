@@ -231,25 +231,20 @@ io.on('connection', (socket) => {
     
     // Send secret word to players who should see it
     [...seers, ...werewolves, ...shahrdars].forEach(player => {
-      // Get the socket for this player
-      const playerSocket = io.sockets.sockets.get(player.id);
-      if (playerSocket) {
-        playerSocket.emit('secret-word-revealed', {
-          secretWord: room.secretWord,
-          role: player.role
-        });
-      }
+      // Emit directly to the socket by its ID
+      console.log(`Sending secret word to ${player.name} (${player.role}, shahrdar: ${player.isShahrdar}, socketId: ${player.id}): ${room.secretWord}`);
+      io.to(player.id).emit('secret-word-revealed', {
+        secretWord: room.secretWord,
+        role: player.role
+      });
     });
     
     // Send werewolf teammates to each werewolf
     werewolves.forEach(werewolf => {
       const teammates = werewolves.filter(w => w.id !== werewolf.id);
-      const werewolfSocket = io.sockets.sockets.get(werewolf.id);
-      if (werewolfSocket) {
-        werewolfSocket.emit('werewolf-teammates', {
-          teammates: teammates.map(t => ({ id: t.id, name: t.name }))
-        });
-      }
+      io.to(werewolf.id).emit('werewolf-teammates', {
+        teammates: teammates.map(t => ({ id: t.id, name: t.name }))
+      });
     });
     
     io.to(roomCode).emit('game-started', {
@@ -646,7 +641,20 @@ io.on('connection', (socket) => {
 });
 
 function generateRoomCode() {
-  return Math.random().toString(36).substring(2, 8).toUpperCase();
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let length = 1;
+  let roomCode;
+  
+  // Try codes starting from 1 character, increasing length if duplicate found
+  do {
+    roomCode = '';
+    for (let i = 0; i < length; i++) {
+      roomCode += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    length++;
+  } while (rooms.has(roomCode) && length <= 10); // Max 10 characters to prevent infinite loop
+  
+  return roomCode;
 }
 
 function assignRoles(roomCode, roomPlayersArray) {
