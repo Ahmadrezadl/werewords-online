@@ -83,6 +83,13 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
       setWerewolfTeammates(teammates);
     });
 
+    socket.on('questions-sync', ({ questions }) => {
+      // Replace local questions with server snapshot on resume/start
+      if (Array.isArray(questions)) {
+        setQuestions(questions);
+      }
+    });
+
     socket.on('word-guessed', ({ guesserName, secretWord }) => {
       setWordGuessed(true);
       setSecretWord(secretWord);

@@ -73,7 +73,8 @@ io.on('connection', (socket) => {
       creatorId: playerId,
       creatorUUID: uuid || null,
       wordGuessed: false,
-      alphaTimerStartTime: null
+      alphaTimerStartTime: null,
+      questions: []
     });
     
     players.set(playerId, {
@@ -229,6 +230,11 @@ io.on('connection', (socket) => {
           socket.emit('alpha-timer-update', { remaining });
         }, 150);
       }
+
+      // Send questions history snapshot to resuming player
+      socket.emit('questions-sync', {
+        questions: room.questions || []
+      });
       
       // Send werewolf teammates if player is a werewolf
       if (existing.role === 'werewolf' || existing.role === 'alpha-werewolf') {
@@ -268,6 +274,7 @@ io.on('connection', (socket) => {
     room.rounds = 0;
     room.wordGuessed = false;
     room.alphaTimerStartTime = null;
+    room.questions = [];
     
     // Refresh roomPlayers after roles are assigned to ensure we have latest data
     const updatedRoomPlayers = Array.from(players.values()).filter(p => p.roomCode === roomCode);
@@ -331,6 +338,11 @@ io.on('connection', (socket) => {
           });
         }, 100);
       }
+
+      // Send questions history snapshot to each player
+      io.to(player.id).emit('questions-sync', {
+        questions: room.questions || []
+      });
     });
   });
 
@@ -345,10 +357,12 @@ io.on('connection', (socket) => {
     const isCorrect = normalizePersian(question) === normalizePersian(room.secretWord);
     
     if (isCorrect) {
-      // Correct guess - only send one message
+      // Correct guess - store and emit one message
+      const guessedMsg = { playerName: player.name, question: `کلمه را پیدا کرد: ${question} ✅`, reaction: null, isGuess: true };
+      room.questions = [guessedMsg, ...(room.questions || [])];
       io.to(roomCode).emit('question-asked', {
         playerName: player.name,
-        question: `کلمه را پیدا کرد: ${question} ✅`,
+        question: guessedMsg.question,
         questionsLeft: 0,
         isGuess: true
       });
@@ -379,9 +393,11 @@ io.on('connection', (socket) => {
       
       // Also send as regular question
       player.questionsAsked++;
+      const qMsg = { playerName: player.name, question: `پرسید: ${question}`, reaction: null, isGuess: false };
+      room.questions = [qMsg, ...(room.questions || [])];
       io.to(roomCode).emit('question-asked', {
         playerName: player.name,
-        question: `پرسید: ${question}`,
+        question: qMsg.question,
         questionsLeft: 20 - player.questionsAsked,
         isGuess: false
       });
@@ -397,6 +413,14 @@ io.on('connection', (socket) => {
       return;
     }
     
+    // Update stored question reaction if available
+    if (room && room.questions && room.questions[questionIndex]) {
+      room.questions[questionIndex] = {
+        ...room.questions[questionIndex],
+        reaction: emoji || null
+      };
+    }
+
     io.to(roomCode).emit('shahrdar-reacted', {
       playerName: player.name,
       emoji: emoji || null,
