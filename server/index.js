@@ -177,7 +177,8 @@ io.on('connection', (socket) => {
       const isWerewolf = existing.role === 'werewolf' || existing.role === 'alpha-werewolf';
       
       const visiblePlayers = roomPlayers.map(p => {
-        const showRole = (isWerewolf && (p.role === 'werewolf' || p.role === 'alpha-werewolf')) || // Werewolves see werewolves
+        const showRole = p.id === existing.id || // Everyone sees their own role
+                        (isWerewolf && (p.role === 'werewolf' || p.role === 'alpha-werewolf')) || // Werewolves see werewolves
                         p.isShahrdar; // Everyone sees shahrdar
         
         return {
@@ -276,7 +277,8 @@ io.on('connection', (socket) => {
       const isWerewolf = player.role === 'werewolf' || player.role === 'alpha-werewolf';
       
       const visiblePlayers = updatedRoomPlayers.map(p => {
-        const showRole = (isWerewolf && (p.role === 'werewolf' || p.role === 'alpha-werewolf')) || // Werewolves see werewolves
+        const showRole = p.id === player.id || // Everyone sees their own role
+                        (isWerewolf && (p.role === 'werewolf' || p.role === 'alpha-werewolf')) || // Werewolves see werewolves
                         p.isShahrdar; // Everyone sees shahrdar
         
         return {
@@ -759,11 +761,13 @@ function updateRoomPlayers(roomCode) {
     const isWerewolf = player.role === 'werewolf' || player.role === 'alpha-werewolf';
     
     // Filter players based on visibility rules:
+    // - Everyone sees their own role
     // - Werewolves see other werewolves' roles
     // - Everyone sees shahrdar
     // - Others see null for roles
     const visiblePlayers = roomPlayers.map(p => {
       const showRole = room.gameState === 'playing' && (
+        p.id === player.id || // Everyone sees their own role
         (isWerewolf && (p.role === 'werewolf' || p.role === 'alpha-werewolf')) || // Werewolves see werewolves
         p.isShahrdar // Everyone sees shahrdar
       );
