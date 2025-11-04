@@ -51,6 +51,11 @@ function App() {
       setCurrentView('game');
     });
 
+    newSocket.on('game-ended', () => {
+      // Don't change view - GameRoom component will handle showing end screen
+      // setCurrentView('game'); // Keep current view
+    });
+
     newSocket.on('error', ({ message }) => {
       alert(message);
     });

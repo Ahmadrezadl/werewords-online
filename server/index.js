@@ -38,7 +38,6 @@ const GAME_WORDS = [
   'بشقاب', 'لیوان', 'صندلی', 'میز', 'تخت', 'مبل', 'کمد', 'چراغ',
   'تلویزیون', 'رادیو', 'موبایل', 'دوربین', 'کیف', 'کفش', 'کت', 'شلوار',
   'کراوات', 'کمربند', 'ساعت', 'عینک', 'کلاه', 'دستکش', 'جوراب', 'دمپایی',
-  'موز', 'پرتقال', 'نارنگی', 'لیمو', 'انار', 'هویج', 'خیار', 'گوجه', 'پیاز',
   'سبزی', 'فلفل', 'نان', 'برنج', 'پاستا', 'سوپ', 'پیتزا',
 ];
 
@@ -164,18 +163,34 @@ io.on('connection', (socket) => {
       isPlaying: room.gameState === 'playing'
     });
     
+    // If game ended, send game-ended event to restore end screen
+    if (room.gameState === 'waiting' && existing.lastGameResult) {
+      socket.emit('game-ended', existing.lastGameResult);
+      return; // Don't proceed to game state restore
+    }
+    
     // If game is playing, send full game state
     if (room.gameState === 'playing' && room.secretWord) {
       const roomPlayers = Array.from(players.values()).filter(p => p.roomCode === roomCode);
       
-      // Send game-started event to put client in game view
-      socket.emit('game-started', {
-        players: roomPlayers.map(p => ({
+      // Determine what this player should see
+      const isWerewolf = existing.role === 'werewolf' || existing.role === 'alpha-werewolf';
+      
+      const visiblePlayers = roomPlayers.map(p => {
+        const showRole = (isWerewolf && (p.role === 'werewolf' || p.role === 'alpha-werewolf')) || // Werewolves see werewolves
+                        p.isShahrdar; // Everyone sees shahrdar
+        
+        return {
           id: p.id,
           name: p.name,
-          role: p.role,
+          role: showRole ? p.role : null,
           isShahrdar: p.isShahrdar
-        })),
+        };
+      });
+      
+      // Send game-started event to put client in game view
+      socket.emit('game-started', {
+        players: visiblePlayers,
         wordLength: room.secretWord.length
       });
       
@@ -186,6 +201,7 @@ io.on('connection', (socket) => {
                            existing.isShahrdar;
       if (shouldSeeWord) {
         // Send immediately - socket is already joined
+        console.log(`Resume: Sending secret word to ${existing.name} (${existing.role}, shahrdar: ${existing.isShahrdar}): ${room.secretWord}`);
         socket.emit('secret-word-revealed', {
           secretWord: room.secretWord,
           role: existing.role
@@ -200,6 +216,14 @@ io.on('connection', (socket) => {
           teammates: teammates.map(t => ({ id: t.id, name: t.name }))
         });
       }
+    } else if (room.gameState === 'waiting') {
+      // If game ended, make sure client knows game is not playing
+      socket.emit('room-joined', { 
+        roomCode, 
+        playerId: existing.id,
+        gameState: room.gameState,
+        isPlaying: false
+      });
     }
     
     updateRoomPlayers(roomCode);
@@ -247,14 +271,26 @@ io.on('connection', (socket) => {
       });
     });
     
-    io.to(roomCode).emit('game-started', {
-      players: updatedRoomPlayers.map(p => ({
-        id: p.id,
-        name: p.name,
-        role: p.role,
-        isShahrdar: p.isShahrdar
-      })),
-      wordLength: room.secretWord.length
+    // Send personalized game-started to each player with filtered role visibility
+    updatedRoomPlayers.forEach(player => {
+      const isWerewolf = player.role === 'werewolf' || player.role === 'alpha-werewolf';
+      
+      const visiblePlayers = updatedRoomPlayers.map(p => {
+        const showRole = (isWerewolf && (p.role === 'werewolf' || p.role === 'alpha-werewolf')) || // Werewolves see werewolves
+                        p.isShahrdar; // Everyone sees shahrdar
+        
+        return {
+          id: p.id,
+          name: p.name,
+          role: showRole ? p.role : null,
+          isShahrdar: p.isShahrdar
+        };
+      });
+      
+      io.to(player.id).emit('game-started', {
+        players: visiblePlayers,
+        wordLength: room.secretWord.length
+      });
     });
   });
 
@@ -410,7 +446,7 @@ io.on('connection', (socket) => {
         if (!isWerewolf) {
           // Citizens killed a citizen - werewolves win
           const roomPlayersFull = Array.from(players.values()).filter(p => p.roomCode === roomCode);
-          io.to(roomCode).emit('game-ended', {
+          endGame(roomCode, {
             winner: 'werewolves',
             reason: 'شهروندی توسط مردم کشته شد',
             roles: roomPlayersFull.map(p => ({
@@ -420,8 +456,6 @@ io.on('connection', (socket) => {
             })),
             secretWord: room.secretWord
           });
-          
-          room.gameState = 'waiting';
         } else {
           // Check if all werewolves are killed
           const remainingWerewolves = roomPlayers.filter(p => {
@@ -431,7 +465,7 @@ io.on('connection', (socket) => {
           
           if (remainingWerewolves.length === 0) {
             const roomPlayersFull = Array.from(players.values()).filter(p => p.roomCode === roomCode);
-            io.to(roomCode).emit('game-ended', {
+            endGame(roomCode, {
               winner: 'citizens',
               reason: 'تمام گرگینه‌ها کشته شدند',
               roles: roomPlayersFull.map(p => ({
@@ -441,8 +475,6 @@ io.on('connection', (socket) => {
               })),
               secretWord: room.secretWord
             });
-            
-            room.gameState = 'waiting';
           }
         }
       }
@@ -465,7 +497,7 @@ io.on('connection', (socket) => {
     const target = Array.from(players.values()).find(p => p.id === seerId);
     if (target && target.role === 'seer') {
       const roomPlayers = Array.from(players.values()).filter(p => p.roomCode === roomCode);
-      io.to(roomCode).emit('game-ended', {
+      endGame(roomCode, {
         winner: 'werewolves',
         reason: 'آلفا گرگینه غیب‌گو را کشت',
         roles: roomPlayers.map(p => ({
@@ -477,11 +509,9 @@ io.on('connection', (socket) => {
         killedBy: player.name,
         killedPlayer: target.name
       });
-      
-      room.gameState = 'waiting';
     } else if (target) {
       const roomPlayers = Array.from(players.values()).filter(p => p.roomCode === roomCode);
-      io.to(roomCode).emit('game-ended', {
+      endGame(roomCode, {
         winner: 'citizens',
         reason: 'آلفا گرگینه اشتباه کرد',
         roles: roomPlayers.map(p => ({
@@ -493,8 +523,6 @@ io.on('connection', (socket) => {
         killedBy: player.name,
         killedPlayer: target.name
       });
-      
-      room.gameState = 'waiting';
     }
   });
 
@@ -513,7 +541,7 @@ io.on('connection', (socket) => {
     const target = Array.from(players.values()).find(p => p.id === targetPlayerId);
     if (target && target.role === 'seer') {
       const roomPlayers = Array.from(players.values()).filter(p => p.roomCode === roomCode);
-      io.to(roomCode).emit('game-ended', {
+      endGame(roomCode, {
         winner: 'werewolves',
         reason: 'آلفا گرگینه غیب‌گو را پیدا کرد',
         roles: roomPlayers.map(p => ({
@@ -525,11 +553,9 @@ io.on('connection', (socket) => {
         killedBy: player.name,
         killedPlayer: target.name
       });
-      
-      room.gameState = 'waiting';
     } else if (target) {
       const roomPlayers = Array.from(players.values()).filter(p => p.roomCode === roomCode);
-      io.to(roomCode).emit('game-ended', {
+      endGame(roomCode, {
         winner: 'citizens',
         reason: 'آلفا گرگینه اشتباه کرد',
         roles: roomPlayers.map(p => ({
@@ -541,8 +567,6 @@ io.on('connection', (socket) => {
         killedBy: player.name,
         killedPlayer: target.name
       });
-      
-      room.gameState = 'waiting';
     }
   });
 
@@ -557,7 +581,7 @@ io.on('connection', (socket) => {
     
     // Alpha werewolf ran out of time - citizens win
     const roomPlayers = Array.from(players.values()).filter(p => p.roomCode === roomCode);
-    io.to(roomCode).emit('game-ended', {
+    endGame(roomCode, {
       winner: 'citizens',
       reason: 'زمان آلفا گرگینه تمام شد',
       roles: roomPlayers.map(p => ({
@@ -567,8 +591,6 @@ io.on('connection', (socket) => {
       })),
       secretWord: room.secretWord
     });
-    
-    room.gameState = 'waiting';
   });
 
   socket.on('restart-game', ({ roomCode }) => {
@@ -595,6 +617,7 @@ io.on('connection', (socket) => {
       p.role = null;
       p.isShahrdar = false;
       p.questionsAsked = 0;
+      p.lastGameResult = null; // Clear game result
     });
     
     // Notify all clients to clear game result
@@ -639,6 +662,25 @@ io.on('connection', (socket) => {
     }
   });
 });
+
+// Helper function to emit game-ended and store result for players
+function endGame(roomCode, gameResult) {
+  const room = rooms.get(roomCode);
+  if (!room) return;
+  
+  const roomPlayers = Array.from(players.values()).filter(p => p.roomCode === roomCode);
+  
+  // Store game result for each player (for resume after refresh)
+  roomPlayers.forEach(p => {
+    p.lastGameResult = gameResult;
+  });
+  
+  // Emit to all players in room
+  io.to(roomCode).emit('game-ended', gameResult);
+  
+  // Set room state to waiting
+  room.gameState = 'waiting';
+}
 
 function generateRoomCode() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -711,14 +753,33 @@ function updateRoomPlayers(roomCode) {
   if (!room) return;
   
   const roomPlayers = Array.from(players.values()).filter(p => p.roomCode === roomCode);
-  io.to(roomCode).emit('room-updated', {
-    players: roomPlayers.map(p => ({
-      id: p.id,
-      name: p.name,
-      role: room.gameState === 'playing' ? p.role : null,
-      isShahrdar: room.gameState === 'playing' ? p.isShahrdar : false
-    })),
-    creatorId: room.creatorId
+  
+  // Send personalized player lists to each client based on their role
+  roomPlayers.forEach(player => {
+    const isWerewolf = player.role === 'werewolf' || player.role === 'alpha-werewolf';
+    
+    // Filter players based on visibility rules:
+    // - Werewolves see other werewolves' roles
+    // - Everyone sees shahrdar
+    // - Others see null for roles
+    const visiblePlayers = roomPlayers.map(p => {
+      const showRole = room.gameState === 'playing' && (
+        (isWerewolf && (p.role === 'werewolf' || p.role === 'alpha-werewolf')) || // Werewolves see werewolves
+        p.isShahrdar // Everyone sees shahrdar
+      );
+      
+      return {
+        id: p.id,
+        name: p.name,
+        role: showRole ? p.role : (room.gameState === 'playing' ? null : null),
+        isShahrdar: room.gameState === 'playing' ? p.isShahrdar : false
+      };
+    });
+    
+    io.to(player.id).emit('room-updated', {
+      players: visiblePlayers,
+      creatorId: room.creatorId
+    });
   });
 }
 
