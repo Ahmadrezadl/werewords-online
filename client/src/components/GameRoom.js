@@ -458,7 +458,11 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
               }).map(player => (
                 <div key={player.id} className="player-item" style={{
                   background: player.isShahrdar ? '#fff3e0' : '#f9f9f9',
-                  border: player.isShahrdar ? '2px solid #ff9800' : 'none'
+                  border: player.isShahrdar ? '2px solid #ff9800' : 'none',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '10px'
                 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                     <span style={{ fontWeight: player.isShahrdar ? 'bold' : 'normal' }}>
@@ -470,6 +474,25 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
                       </span>
                     )}
                   </div>
+                  {playerId === creatorId && player.id !== playerId && (
+                    <button
+                      className="btn"
+                      onClick={() => {
+                        if (window.confirm(`آیا مطمئن هستید می‌خواهید ${player.name} را اخراج کنید؟`)) {
+                          socket.emit('kick-player', { roomCode, targetPlayerId: player.id });
+                        }
+                      }}
+                      style={{
+                        padding: '5px 10px',
+                        fontSize: '12px',
+                        background: '#f44336',
+                        color: 'white',
+                        marginRight: '10px'
+                      }}
+                    >
+                      🚫 اخراج
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

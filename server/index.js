@@ -91,8 +91,10 @@ io.on('connection', (socket) => {
     socket.join(roomCode);
     socket.emit('room-created', { roomCode, playerId });
     
-    // Send initial room state to the creator
-    updateRoomPlayers(roomCode);
+    // Send initial room state to the creator after socket join completes
+    setTimeout(() => {
+      updateRoomPlayers(roomCode);
+    }, 50);
   });
 
   socket.on('join-room', ({ roomCode, playerName, uuid }) => {
@@ -140,8 +142,11 @@ io.on('connection', (socket) => {
     socket.join(roomCode);
     socket.emit('room-joined', { roomCode, playerId });
     
-    // Send initial room state to the joining player
-    updateRoomPlayers(roomCode);
+    // Send initial room state to the joining player after socket join completes
+    // Use a small delay to ensure socket.join has completed and client listeners are set up
+    setTimeout(() => {
+      updateRoomPlayers(roomCode);
+    }, 50);
   });
 
   // Resume session using UUID
@@ -241,7 +246,9 @@ io.on('connection', (socket) => {
       });
       
       // Send initial room state to resuming player (with filtered roles)
-      updateRoomPlayers(roomCode);
+      setTimeout(() => {
+        updateRoomPlayers(roomCode);
+      }, 50);
       
       // Send werewolf teammates if player is a werewolf
       if (existing.role === 'werewolf' || existing.role === 'alpha-werewolf') {
@@ -259,9 +266,11 @@ io.on('connection', (socket) => {
         gameState: room.gameState,
         isPlaying: false
       });
+      // Send room players after socket join completes
+      setTimeout(() => {
+        updateRoomPlayers(roomCode);
+      }, 50);
     }
-    
-    updateRoomPlayers(roomCode);
   });
 
   socket.on('start-game', ({ roomCode }) => {
@@ -687,6 +696,7 @@ io.on('connection', (socket) => {
     room.votes = {};
     room.wordGuessed = false;
     room.alphaTimerStartTime = null;
+    room.questions = [];
     
     // Reset all players
     const roomPlayers = Array.from(players.values()).filter(p => p.roomCode === roomCode);
@@ -697,9 +707,54 @@ io.on('connection', (socket) => {
       p.lastGameResult = null; // Clear game result
     });
     
-    // Notify all clients to clear game result
+    // Notify all clients to clear game result and navigate back to waiting room
     io.to(roomCode).emit('game-reset');
+    io.to(roomCode).emit('navigate-to-waiting-room');
     
+    // Update room players after a small delay to ensure all clients are ready
+    setTimeout(() => {
+      updateRoomPlayers(roomCode);
+    }, 100);
+  });
+
+  socket.on('kick-player', ({ roomCode, targetPlayerId }) => {
+    const room = rooms.get(roomCode);
+    const player = players.get(socket.id);
+    
+    if (!room || !player) return;
+    
+    // Only room creator can kick players (check by UUID or socket.id)
+    const isCreator = room.creatorId === socket.id || (player.uuid && room.creatorUUID === player.uuid);
+    if (!isCreator) {
+      socket.emit('error', { message: 'فقط سازنده اتاق می‌تواند بازیکنان را اخراج کند' });
+      return;
+    }
+    
+    // Don't allow kicking the creator
+    if (targetPlayerId === room.creatorId) {
+      socket.emit('error', { message: 'نمی‌توانید خودتان را اخراج کنید' });
+      return;
+    }
+    
+    const targetPlayer = players.get(targetPlayerId);
+    if (!targetPlayer || targetPlayer.roomCode !== roomCode) {
+      socket.emit('error', { message: 'بازیکن یافت نشد' });
+      return;
+    }
+    
+    // Notify the kicked player
+    io.to(targetPlayerId).emit('player-kicked', { message: 'شما از اتاق اخراج شدید' });
+    
+    // Remove the player from the socket room
+    const targetSocket = io.sockets.sockets.get(targetPlayerId);
+    if (targetSocket) {
+      targetSocket.leave(roomCode);
+    }
+    
+    // Remove the player
+    players.delete(targetPlayerId);
+    
+    // Update room players
     updateRoomPlayers(roomCode);
   });
 

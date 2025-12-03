@@ -56,6 +56,19 @@ function App() {
       // setCurrentView('game'); // Keep current view
     });
 
+    newSocket.on('navigate-to-waiting-room', () => {
+      // When host restarts game, navigate all players back to waiting room
+      setCurrentView('waiting-room');
+    });
+
+    newSocket.on('player-kicked', ({ message }) => {
+      alert(message);
+      setCurrentView('lobby');
+      setRoomCode(null);
+      setPlayerId(null);
+      localStorage.removeItem('lastRoomCode');
+    });
+
     newSocket.on('error', ({ message }) => {
       alert(message);
     });
@@ -70,7 +83,17 @@ function App() {
       }
     });
 
-    return () => newSocket.close();
+    return () => {
+      newSocket.off('room-created');
+      newSocket.off('room-joined');
+      newSocket.off('game-started');
+      newSocket.off('game-ended');
+      newSocket.off('navigate-to-waiting-room');
+      newSocket.off('player-kicked');
+      newSocket.off('error');
+      newSocket.off('connect');
+      newSocket.close();
+    };
   }, []);
 
   useEffect(() => {
