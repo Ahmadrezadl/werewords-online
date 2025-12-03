@@ -88,33 +88,25 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
-      // Clear any existing alpha timer
+      // Clear any existing alpha timer - will be restarted by alpha-timer-update from server
       if (alphaTimerRef.current) {
         clearInterval(alphaTimerRef.current);
         alphaTimerRef.current = null;
       }
-      // Start alpha last chance timer
-      setAlphaLastChanceTimer(60);
-      // Start the countdown interval
-      alphaTimerRef.current = setInterval(() => {
-        setAlphaLastChanceTimer(prev => {
-          const newValue = prev - 1;
-          if (newValue <= 0) {
-            if (alphaTimerRef.current) {
-              clearInterval(alphaTimerRef.current);
-              alphaTimerRef.current = null;
-            }
-            return 0;
-          }
-          return newValue;
-        });
-      }, 1000);
+      // Don't start timer here - wait for alpha-timer-update from server
+      // This ensures server is the source of truth for timer state
     });
 
     socket.on('alpha-timer-update', ({ remaining }) => {
+      // Clear any existing timer first
+      if (alphaTimerRef.current) {
+        clearInterval(alphaTimerRef.current);
+        alphaTimerRef.current = null;
+      }
+      // Set the remaining time
       setAlphaLastChanceTimer(remaining);
-      // Restart timer if not already running
-      if (!alphaTimerRef.current && remaining > 0) {
+      // Start the countdown timer if remaining > 0
+      if (remaining > 0) {
         alphaTimerRef.current = setInterval(() => {
           setAlphaLastChanceTimer(prev => {
             const newValue = prev - 1;
