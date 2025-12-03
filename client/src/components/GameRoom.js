@@ -400,7 +400,7 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
             </div>
           </div>
 
-          {playerId === creatorId ? (
+          {playerId === creatorId && (
             <button 
               className="btn" 
               onClick={() => {
@@ -410,16 +410,6 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
               style={{ marginTop: '30px', padding: '12px 30px', fontSize: '16px' }}
             >
               شروع بازی جدید
-            </button>
-          ) : (
-            <button 
-              className="btn" 
-              onClick={() => {
-                window.location.reload();
-              }}
-              style={{ marginTop: '30px', padding: '12px 30px', fontSize: '16px' }}
-            >
-              خروج از بازی
             </button>
           )}
         </div>
@@ -464,35 +454,38 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
                   alignItems: 'center',
                   padding: '10px'
                 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                    <span style={{ fontWeight: player.isShahrdar ? 'bold' : 'normal' }}>
-                      {player.name} {player.id === playerId && '(شما)'}
-                    </span>
-                    {player.isShahrdar && (
-                      <span style={{ fontSize: '12px', color: '#ff9800', fontWeight: 'bold', marginTop: '4px' }}>
-                        شهردار
-                      </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
+                    {playerId === creatorId && player.id !== playerId && (
+                      <button
+                        className="btn"
+                        onClick={() => {
+                          if (window.confirm(`آیا مطمئن هستید می‌خواهید ${player.name} را اخراج کنید؟`)) {
+                            socket.emit('kick-player', { roomCode, targetPlayerId: player.id });
+                          }
+                        }}
+                        style={{
+                          padding: '4px 8px',
+                          fontSize: '11px',
+                          background: '#f44336',
+                          color: 'white',
+                          minWidth: 'auto',
+                          flexShrink: 0
+                        }}
+                      >
+                        🚫
+                      </button>
                     )}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flex: 1 }}>
+                      <span style={{ fontWeight: player.isShahrdar ? 'bold' : 'normal' }}>
+                        {player.name} {player.id === playerId && '(شما)'}
+                      </span>
+                      {player.isShahrdar && (
+                        <span style={{ fontSize: '12px', color: '#ff9800', fontWeight: 'bold', marginTop: '4px' }}>
+                          شهردار
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  {playerId === creatorId && player.id !== playerId && (
-                    <button
-                      className="btn"
-                      onClick={() => {
-                        if (window.confirm(`آیا مطمئن هستید می‌خواهید ${player.name} را اخراج کنید؟`)) {
-                          socket.emit('kick-player', { roomCode, targetPlayerId: player.id });
-                        }
-                      }}
-                      style={{
-                        padding: '5px 10px',
-                        fontSize: '12px',
-                        background: '#f44336',
-                        color: 'white',
-                        marginRight: '10px'
-                      }}
-                    >
-                      🚫 اخراج
-                    </button>
-                  )}
                 </div>
               ))}
             </div>

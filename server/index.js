@@ -392,12 +392,19 @@ io.on('connection', (socket) => {
       room.wordGuessed = true;
       room.alphaTimerStartTime = Date.now();
       
-      const alphaWerewolf = Array.from(players.values()).find(p => p.roomCode === roomCode && p.role === 'alpha-werewolf');
-      if (alphaWerewolf) {
-        io.to(alphaWerewolf.id).emit('alpha-last-chance-opportunity', {
-          message: 'شما یک فرصت آخر برای پیدا کردن غیب‌گو دارید!'
-        });
-      }
+      // Send timer update to all werewolves to start countdown
+      const werewolves = Array.from(players.values()).filter(p => 
+        p.roomCode === roomCode && (p.role === 'alpha-werewolf' || p.role === 'werewolf')
+      );
+      
+      werewolves.forEach(werewolf => {
+        io.to(werewolf.id).emit('alpha-timer-update', { remaining: 60 });
+        if (werewolf.role === 'alpha-werewolf') {
+          io.to(werewolf.id).emit('alpha-last-chance-opportunity', {
+            message: 'شما یک فرصت آخر برای پیدا کردن غیب‌گو دارید!'
+          });
+        }
+      });
       
       room.gameState = 'waiting';
     } else {
@@ -464,13 +471,23 @@ io.on('connection', (socket) => {
         secretWord: room.secretWord
       });
       
-      // Give alpha werewolf a chance to identify seer
-      const alphaWerewolf = Array.from(players.values()).find(p => p.roomCode === roomCode && p.role === 'alpha-werewolf');
-      if (alphaWerewolf) {
-        io.to(alphaWerewolf.id).emit('alpha-last-chance-opportunity', {
-          message: 'شما یک فرصت آخر برای پیدا کردن غیب‌گو دارید!'
-        });
-      }
+      // Mark word as guessed and start alpha timer
+      room.wordGuessed = true;
+      room.alphaTimerStartTime = Date.now();
+      
+      // Send timer update to all werewolves to start countdown
+      const werewolves = Array.from(players.values()).filter(p => 
+        p.roomCode === roomCode && (p.role === 'alpha-werewolf' || p.role === 'werewolf')
+      );
+      
+      werewolves.forEach(werewolf => {
+        io.to(werewolf.id).emit('alpha-timer-update', { remaining: 60 });
+        if (werewolf.role === 'alpha-werewolf') {
+          io.to(werewolf.id).emit('alpha-last-chance-opportunity', {
+            message: 'شما یک فرصت آخر برای پیدا کردن غیب‌گو دارید!'
+          });
+        }
+      });
       
       room.gameState = 'waiting';
     } else {
@@ -541,25 +558,18 @@ io.on('connection', (socket) => {
             secretWord: room.secretWord
           });
         } else {
-          // Check if all werewolves are killed
-          const remainingWerewolves = roomPlayers.filter(p => {
-            const fullPlayer = players.get(p.id);
-            return fullPlayer && (fullPlayer.role === 'werewolf' || fullPlayer.role === 'alpha-werewolf');
+          // Any werewolf killed - citizens win immediately
+          const roomPlayersFull = Array.from(players.values()).filter(p => p.roomCode === roomCode);
+          endGame(roomCode, {
+            winner: 'citizens',
+            reason: 'گرگینه کشته شد',
+            roles: roomPlayersFull.map(p => ({
+              name: p.name,
+              role: p.role,
+              isShahrdar: p.isShahrdar
+            })),
+            secretWord: room.secretWord
           });
-          
-          if (remainingWerewolves.length === 0) {
-            const roomPlayersFull = Array.from(players.values()).filter(p => p.roomCode === roomCode);
-            endGame(roomCode, {
-              winner: 'citizens',
-              reason: 'تمام گرگینه‌ها کشته شدند',
-              roles: roomPlayersFull.map(p => ({
-                name: p.name,
-                role: p.role,
-                isShahrdar: p.isShahrdar
-              })),
-              secretWord: room.secretWord
-            });
-          }
         }
       }
     }
