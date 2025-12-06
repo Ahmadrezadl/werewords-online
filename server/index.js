@@ -27,18 +27,26 @@ const GAME_WORDS = [
   'کوه', 'خانه', 'دانشگاه', 'پارک', 'شیر', 'طوطی', 'دست', 'پا', 'چشم',
   'بینایی', 'رنگ', 'نور', 'فامیل', 'دوست', 'آموزش', 'آشپزی',
   'خورشید', 'ماه', 'ستاره', 'ابر', 'باران', 'برف', 'باد', 'طوفان',
-  'خاک', 'آب', 'آتش', 'یخ', 'برق', 'شن', 'سنگ', 'گیاه',
+  'خاک', 'آتش', 'یخ', 'برق', 'شن', 'سنگ', 'گیاه',
   'پروانه', 'مورچه', 'زنبور', 'مگس', 'پشه', 'کرم', 'مار', 'عنکبوت',
   'فیل', 'ببر', 'خرس', 'گرگ', 'روباه', 'خرگوش', 'سنجاب', 'گربه',
   'قناری', 'عقاب', 'پلیکان', 'قو', 'اردک', 'مرغ', 'خروس', 'ماهی',
   'اسب', 'گاو', 'گوسفند', 'بز', 'خوک', 'سگ', 'موش', 'لاک‌پشت',
   'سیب', 'موز', 'پرتقال', 'نارنگی', 'لیمو', 'انار', 'هویج', 'خیار',
   'گوجه', 'پیاز', 'فلفل', 'نان', 'برنج', 'پاستا', 'سوپ', 'پیتزا',
-  'آب', 'چای', 'قهوه', 'شیر', 'آب‌میوه', 'قاشق', 'چنگال', 'چاقو',
+  'چای', 'قهوه', 'شیر', 'آب‌میوه', 'قاشق', 'چنگال', 'چاقو',
   'بشقاب', 'لیوان', 'صندلی', 'میز', 'تخت', 'مبل', 'کمد', 'چراغ',
   'تلویزیون', 'رادیو', 'موبایل', 'دوربین', 'کیف', 'کفش', 'کت', 'شلوار',
   'کراوات', 'کمربند', 'ساعت', 'عینک', 'کلاه', 'دستکش', 'جوراب', 'دمپایی',
   'سبزی', 'فلفل', 'نان', 'برنج', 'پاستا', 'سوپ', 'پیتزا',
+  'ماشین', 'دوچرخه', 'هواپیما', 'قطار', 'کشتی', 'اتوبوس', 'موتور', 'هلیکوپتر',
+  'رستوران', 'فروشگاه', 'بیمارستان', 'مدرسه', 'مسجد', 'کتابخانه', 'سینما', 'تئاتر',
+  'ورزش', 'فوتبال', 'بسکتبال', 'والیبال', 'تنیس', 'شنا', 'دو', 'کوهنوردی',
+  'موسیقی', 'آهنگ', 'خواننده', 'نوازنده', 'ساز', 'پیانو', 'گیتار', 'ویولن',
+  'رنگ', 'قرمز', 'آبی', 'سبز', 'زرد', 'نارنجی', 'بنفش', 'صورتی',
+  'فصل', 'بهار', 'تابستان', 'پاییز', 'زمستان', 'گرما', 'سرما', 'باران',
+  'شغل', 'دکتر', 'مهندس', 'معلم', 'آشپز', 'راننده', 'خلبان', 'نقاش',
+  'احساس', 'خوشحالی', 'غم', 'عصبانیت', 'ترس', 'تعجب', 'عشق', 'دوستی',
 ];
 
 // Normalize Persian text for robust equality checks
@@ -85,7 +93,8 @@ io.on('connection', (socket) => {
       isShahrdar: false,
       questionsAsked: 0,
       uuid: uuid || null,
-      connected: true
+      connected: true,
+      wins: 0
     });
     
     socket.join(roomCode);
@@ -135,7 +144,8 @@ io.on('connection', (socket) => {
         isShahrdar: false,
         questionsAsked: 0,
         uuid: uuid || null,
-        connected: true
+        connected: true,
+        wins: existing ? existing.wins || 0 : 0
       });
     }
     
@@ -825,9 +835,42 @@ function endGame(roomCode, gameResult) {
   const room = rooms.get(roomCode);
   if (!room) return;
   
-    room.startTime = null;
-    
+  room.startTime = null;
+  
   const roomPlayers = Array.from(players.values()).filter(p => p.roomCode === roomCode);
+  
+  // Determine winners based on game result
+  const isWerewolfWin = gameResult.winner === 'werewolves';
+  
+  // Mark winners and increment win count
+  roomPlayers.forEach(p => {
+    const isWinner = isWerewolfWin 
+      ? (p.role === 'werewolf' || p.role === 'alpha-werewolf')
+      : (p.role !== 'werewolf' && p.role !== 'alpha-werewolf');
+    
+    if (isWinner) {
+      p.wins = (p.wins || 0) + 1;
+    }
+    
+    p.lastGameResult = gameResult;
+  });
+  
+  // Add win counts and winner flags to game result
+  const rolesWithWins = roomPlayers.map(p => {
+    const isWinner = isWerewolfWin 
+      ? (p.role === 'werewolf' || p.role === 'alpha-werewolf')
+      : (p.role !== 'werewolf' && p.role !== 'alpha-werewolf');
+    
+    return {
+      name: p.name,
+      role: p.role,
+      isShahrdar: p.isShahrdar,
+      wins: p.wins || 0,
+      isWinner: isWinner
+    };
+  });
+  
+  gameResult.roles = rolesWithWins;
   
   // Store game result for each player (for resume after refresh)
   roomPlayers.forEach(p => {

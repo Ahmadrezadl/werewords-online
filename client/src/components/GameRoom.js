@@ -356,6 +356,25 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
     return roles[role] || role;
   };
 
+  const getRoleEmoji = (role, isShahrdar) => {
+    if (isShahrdar) return '🏛️';
+    const emojis = {
+      'seer': '🔮',
+      'werewolf': '🐺',
+      'alpha-werewolf': '🐺',
+      'citizen': '👤'
+    };
+    return emojis[role] || '👤';
+  };
+
+  const formatWins = (wins) => {
+    if (wins === 0) return '';
+    if (wins <= 10) {
+      return '🏆'.repeat(wins);
+    }
+    return '🏆'.repeat(10) + wins;
+  };
+
   const isWerewolf = (role) => role === 'werewolf' || role === 'alpha-werewolf';
   const canSeeWerewolves = (role) => isWerewolf(role);
 
@@ -389,11 +408,35 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
           <div style={{ marginTop: '30px', textAlign: 'right' }}>
             <h3>نقش‌های بازیکنان:</h3>
             <div style={{ background: '#f5f5f5', padding: '15px', borderRadius: '10px', marginTop: '10px' }}>
-              {gameResult.roles.map((p, idx) => (
-                <div key={idx} style={{ padding: '8px 0', borderBottom: idx < gameResult.roles.length - 1 ? '1px solid #ddd' : 'none' }}>
-                  <strong>{p.name}:</strong> {getRoleName(p.role)}{p.isShahrdar ? ' (شهردار)' : ''}
-                </div>
-              ))}
+              {gameResult.roles.map((p, idx) => {
+                const winsDisplay = formatWins(p.wins || 0);
+                const roleEmoji = getRoleEmoji(p.role, p.isShahrdar);
+                return (
+                  <div 
+                    key={idx} 
+                    style={{ 
+                      padding: '12px',
+                      marginBottom: '8px',
+                      borderRadius: '8px',
+                      background: p.isWinner ? '#c8e6c9' : '#ffffff',
+                      border: p.isWinner ? '2px solid #4caf50' : '1px solid #ddd',
+                      display: 'flex',
+                      flexDirection: 'row-reverse',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      direction: 'rtl'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span>{roleEmoji}</span>
+                      <span style={{ fontWeight: 'bold' }}>{p.name}</span>
+                    </div>
+                    <div style={{ fontSize: '18px', minWidth: 'fit-content' }}>
+                      {winsDisplay}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -447,10 +490,23 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
                   background: player.isShahrdar ? '#fff3e0' : '#f9f9f9',
                   border: player.isShahrdar ? '2px solid #ff9800' : 'none',
                   display: 'flex',
+                  flexDirection: 'row-reverse',
+                  justifyContent: 'space-between',
                   alignItems: 'center',
                   padding: '10px',
-                  gap: '10px'
+                  gap: '10px',
+                  direction: 'rtl'
                 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flex: 1 }}>
+                    <span style={{ fontWeight: player.isShahrdar ? 'bold' : 'normal' }}>
+                      {player.name} {player.id === playerId && '(شما)'}
+                    </span>
+                    {player.isShahrdar && (
+                      <span style={{ fontSize: '12px', color: '#ff9800', fontWeight: 'bold', marginTop: '4px' }}>
+                        شهردار
+                      </span>
+                    )}
+                  </div>
                   {playerId === creatorId && player.id !== playerId && (
                     <button
                       className="btn"
@@ -474,16 +530,6 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
                       🚫
                     </button>
                   )}
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flex: 1 }}>
-                    <span style={{ fontWeight: player.isShahrdar ? 'bold' : 'normal' }}>
-                      {player.name} {player.id === playerId && '(شما)'}
-                    </span>
-                    {player.isShahrdar && (
-                      <span style={{ fontSize: '12px', color: '#ff9800', fontWeight: 'bold', marginTop: '4px' }}>
-                        شهردار
-                      </span>
-                    )}
-                  </div>
                 </div>
               ))}
             </div>
@@ -564,8 +610,8 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
                     )}
                   </div>
 
-                  <div className="question-list" style={{ flex: '1', overflowY: 'auto', overflowX: 'hidden' }}>
-                    <h3>سوالات و پاسخ‌ها:</h3>
+                  <div className="question-list">
+                    <h3 style={{ marginTop: 0 }}>سوالات و پاسخ‌ها:</h3>
                     {questions.length === 0 ? (
                       <p style={{ color: '#666', fontStyle: 'italic' }}>هنوز سوالی پرسیده نشده است</p>
                     ) : (
@@ -602,9 +648,9 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
               )}
             </div>
 
-            <div className="game-side" style={{ background: '#f5f5f5', padding: '20px', borderRadius: '10px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-              <h3 style={{ marginTop: 0 }}>وضعیت بازیکنان</h3>
-              <div style={{ flex: '1', overflowY: 'auto', overflowX: 'hidden' }}>
+            <div className="game-side" style={{ background: '#f5f5f5', padding: '20px', borderRadius: '10px', display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+              <h3 style={{ marginTop: 0, flexShrink: 0 }}>وضعیت بازیکنان</h3>
+              <div style={{ flex: '1', overflowY: 'auto', overflowX: 'hidden', minHeight: 0 }}>
               {[...players].sort((a, b) => {
                 // Shahrdar comes first
                 if (a.isShahrdar && !b.isShahrdar) return -1;
@@ -630,14 +676,14 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
                       : (myVote === player.id ? '2px solid #2196f3' : '1px solid #ddd'),
                     borderRadius: '8px'
                   }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                    <div style={{ display: 'flex', flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', direction: 'rtl' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                         <div>
                           <span style={{ fontWeight: player.isShahrdar ? 'bold' : 'normal' }}>
                             {player.name}
                             {player.id === playerId && ' (شما)'}
                           </span>
-                          {showWerewolf && <span style={{marginLeft: '8px'}}>🐺</span>}
+                          {showWerewolf && <span style={{marginRight: '8px'}}>🐺</span>}
                         </div>
                         {player.isShahrdar && (
                           <span style={{ fontSize: '12px', color: '#ff9800', fontWeight: 'bold', marginTop: '4px' }}>
