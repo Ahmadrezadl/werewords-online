@@ -172,6 +172,10 @@
     margin-top: 5px;
   }
   
+.word-display {
+  width: 100%;
+}
+
 .game-layout {
   display: flex;
   gap: 20px;
@@ -203,12 +207,21 @@
 
   .game-main {
     min-width: 0;
+    gap: 8px;
   }
 
   .game-side {
     width: 100%;
     max-height: 45vh;
     overflow-y: auto;
+  }
+
+  .question-list {
+    max-height: 45vh;
+  }
+
+  .question-item {
+    overflow: visible;
   }
 }
 

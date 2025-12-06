@@ -184,14 +184,15 @@ io.on('connection', (socket) => {
     // If game is playing, send full game state
     if (room.gameState === 'playing' && room.secretWord) {
       const roomPlayers = Array.from(players.values()).filter(p => p.roomCode === roomCode);
+      const elapsedMain = room.startTime ? Math.floor((Date.now() - room.startTime) / 1000) : 0;
+      const remainingMain = Math.max(0, 600 - elapsedMain);
       
       // Determine what this player should see
       const isWerewolf = existing.role === 'werewolf' || existing.role === 'alpha-werewolf';
       
       const visiblePlayers = roomPlayers.map(p => {
         const showRole = p.id === existing.id || // Everyone sees their own role
-                        (isWerewolf && (p.role === 'werewolf' || p.role === 'alpha-werewolf')) || // Werewolves see werewolves
-                        p.isShahrdar; // Everyone sees shahrdar
+                        (isWerewolf && (p.role === 'werewolf' || p.role === 'alpha-werewolf')); // Werewolves see werewolves
         
         return {
           id: p.id,
@@ -204,7 +205,8 @@ io.on('connection', (socket) => {
       // Send game-started event to put client in game view
       socket.emit('game-started', {
         players: visiblePlayers,
-        wordLength: room.secretWord.length
+        wordLength: room.secretWord.length,
+        remainingTime: remainingMain
       });
       
       // Send secret word if player should see it (after a small delay)
@@ -305,6 +307,7 @@ io.on('connection', (socket) => {
     room.wordGuessed = false;
     room.alphaTimerStartTime = null;
     room.questions = [];
+    room.startTime = Date.now();
     
     // Refresh roomPlayers after roles are assigned to ensure we have latest data
     const updatedRoomPlayers = Array.from(players.values()).filter(p => p.roomCode === roomCode);
@@ -338,8 +341,7 @@ io.on('connection', (socket) => {
       
       const visiblePlayers = updatedRoomPlayers.map(p => {
         const showRole = p.id === player.id || // Everyone sees their own role
-                        (isWerewolf && (p.role === 'werewolf' || p.role === 'alpha-werewolf')) || // Werewolves see werewolves
-                        p.isShahrdar; // Everyone sees shahrdar
+                        (isWerewolf && (p.role === 'werewolf' || p.role === 'alpha-werewolf')); // Werewolves see werewolves
         
         return {
           id: p.id,
@@ -720,6 +722,7 @@ io.on('connection', (socket) => {
     room.votes = {};
     room.wordGuessed = false;
     room.alphaTimerStartTime = null;
+    room.startTime = null;
     room.questions = [];
     
     // Reset all players
@@ -822,6 +825,8 @@ function endGame(roomCode, gameResult) {
   const room = rooms.get(roomCode);
   if (!room) return;
   
+    room.startTime = null;
+    
   const roomPlayers = Array.from(players.values()).filter(p => p.roomCode === roomCode);
   
   // Store game result for each player (for resume after refresh)
@@ -920,14 +925,13 @@ function updateRoomPlayers(roomCode) {
     const visiblePlayers = roomPlayers.map(p => {
       const showRole = room.gameState === 'playing' && (
         p.id === player.id || // Everyone sees their own role
-        (isWerewolf && (p.role === 'werewolf' || p.role === 'alpha-werewolf')) || // Werewolves see werewolves
-        p.isShahrdar // Everyone sees shahrdar
+          (isWerewolf && (p.role === 'werewolf' || p.role === 'alpha-werewolf')) // Werewolves see werewolves
       );
       
       return {
         id: p.id,
         name: p.name,
-        role: showRole ? p.role : (room.gameState === 'playing' ? null : null),
+          role: showRole ? p.role : (room.gameState === 'playing' ? null : null),
         isShahrdar: room.gameState === 'playing' ? p.isShahrdar : false
       };
     });

@@ -34,13 +34,18 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
       // Do not clear word or questions on room-updated; only reflect roster/creator changes
     });
 
-    socket.on('game-started', ({ players: gamePlayers, wordLength }) => {
+    socket.on('game-started', ({ players: gamePlayers, wordLength, remainingTime }) => {
       setPlayers(gamePlayers);
       const me = gamePlayers.find(p => p.id === playerId);
       setCurrentPlayer(me);
       console.log('game-started received:', { me, gamePlayers, playerId });
       if (wordLength) {
         setWordLength(wordLength);
+      }
+      if (typeof remainingTime === 'number') {
+        setTimeLeft(remainingTime);
+      } else {
+        setTimeLeft(600);
       }
       setGameResult(null);
       setPlayerQuestionsAsked({});
