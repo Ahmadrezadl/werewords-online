@@ -145,7 +145,7 @@ io.on('connection', (socket) => {
         questionsAsked: 0,
         uuid: uuid || null,
         connected: true,
-        wins: existing ? existing.wins || 0 : 0
+        wins: 0
       });
     }
     

@@ -372,7 +372,7 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
     if (wins <= 10) {
       return '🏆'.repeat(wins);
     }
-    return '🏆'.repeat(10) + wins;
+    return '🏆 (' + wins.toString() + ')';
   };
 
   const isWerewolf = (role) => role === 'werewolf' || role === 'alpha-werewolf';
