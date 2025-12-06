@@ -153,6 +153,8 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
       if (intervalRef.current) clearInterval(intervalRef.current);
       if (alphaTimerRef.current) clearInterval(alphaTimerRef.current);
       setGameResult({ winner, reason, roles, secretWord, killedBy, killedPlayer });
+      // Ensure creatorId is set (in case of refresh)
+      // It will be set by room-updated event if needed
     });
 
     socket.on('word-guess-wrong', ({ guesserName, guess }) => {

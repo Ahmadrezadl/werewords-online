@@ -188,6 +188,10 @@ io.on('connection', (socket) => {
     // If game ended, send game-ended event to restore end screen
     if (room.gameState === 'waiting' && existing.lastGameResult) {
       socket.emit('game-ended', existing.lastGameResult);
+      // Also send room-updated to restore creatorId
+      setTimeout(() => {
+        updateRoomPlayers(roomCode);
+      }, 50);
       return; // Don't proceed to game state restore
     }
     
