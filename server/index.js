@@ -266,6 +266,20 @@ io.on('connection', (socket) => {
         gameState: room.gameState,
         isPlaying: false
       });
+
+      // If word was guessed and alpha timer is running, restore timer for werewolves
+      if (room.wordGuessed && room.alphaTimerStartTime) {
+        const elapsed = Math.floor((Date.now() - room.alphaTimerStartTime) / 1000);
+        const remaining = Math.max(0, 60 - elapsed);
+
+        socket.emit('word-guessed', {
+          guesserName: '',
+          secretWord: room.secretWord
+        });
+
+        socket.emit('alpha-timer-update', { remaining });
+      }
+
       // Send room players after socket join completes
       setTimeout(() => {
         updateRoomPlayers(roomCode);

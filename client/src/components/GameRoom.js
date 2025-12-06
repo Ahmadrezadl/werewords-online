@@ -442,41 +442,42 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
                   background: player.isShahrdar ? '#fff3e0' : '#f9f9f9',
                   border: player.isShahrdar ? '2px solid #ff9800' : 'none',
                   display: 'flex',
-                  justifyContent: 'space-between',
                   alignItems: 'center',
-                  padding: '10px'
+                  padding: '10px',
+                  gap: '10px'
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
-                    {playerId === creatorId && player.id !== playerId && (
-                      <button
-                        className="btn"
-                        onClick={() => {
-                          if (window.confirm(`آیا مطمئن هستید می‌خواهید ${player.name} را اخراج کنید؟`)) {
-                            socket.emit('kick-player', { roomCode, targetPlayerId: player.id });
-                          }
-                        }}
-                        style={{
-                          padding: '4px 8px',
-                          fontSize: '11px',
-                          background: '#f44336',
-                          color: 'white',
-                          minWidth: 'auto',
-                          flexShrink: 0
-                        }}
-                      >
-                        🚫
-                      </button>
-                    )}
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flex: 1 }}>
-                      <span style={{ fontWeight: player.isShahrdar ? 'bold' : 'normal' }}>
-                        {player.name} {player.id === playerId && '(شما)'}
+                  {playerId === creatorId && player.id !== playerId && (
+                    <button
+                      className="btn"
+                      onClick={() => {
+                        if (window.confirm(`آیا مطمئن هستید می‌خواهید ${player.name} را اخراج کنید؟`)) {
+                          socket.emit('kick-player', { roomCode, targetPlayerId: player.id });
+                        }
+                      }}
+                      style={{
+                        padding: '4px 6px',
+                        fontSize: '11px',
+                        background: '#f44336',
+                        color: 'white',
+                        minWidth: '32px',
+                        width: '36px',
+                        height: '28px',
+                        flexShrink: 0,
+                        textAlign: 'center'
+                      }}
+                    >
+                      🚫
+                    </button>
+                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flex: 1 }}>
+                    <span style={{ fontWeight: player.isShahrdar ? 'bold' : 'normal' }}>
+                      {player.name} {player.id === playerId && '(شما)'}
+                    </span>
+                    {player.isShahrdar && (
+                      <span style={{ fontSize: '12px', color: '#ff9800', fontWeight: 'bold', marginTop: '4px' }}>
+                        شهردار
                       </span>
-                      {player.isShahrdar && (
-                        <span style={{ fontSize: '12px', color: '#ff9800', fontWeight: 'bold', marginTop: '4px' }}>
-                          شهردار
-                        </span>
-                      )}
-                    </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -493,14 +494,14 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
             )}
           </div>
         ) : (
-          <div style={{ display: 'flex', gap: '20px', flex: '1', overflow: 'hidden', minHeight: 0 }}>
+          <div className="game-layout">
             {!currentPlayer ? (
               <div style={{ flex: '1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <p>در حال بارگذاری...</p>
               </div>
             ) : (
               <>
-            <div style={{ flex: '1', minWidth: '400px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div className="game-main">
               <div className="game-timer" style={{ marginBottom: '10px' }}>
                 ⏱️ زمان باقی‌مانده: {formatTime(timeLeft)}
               </div>
@@ -596,7 +597,7 @@ function GameRoom({ socket, roomCode, playerId, playerName, isPlaying = false, s
               )}
             </div>
 
-            <div style={{ width: '350px', background: '#f5f5f5', padding: '20px', borderRadius: '10px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div className="game-side" style={{ background: '#f5f5f5', padding: '20px', borderRadius: '10px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
               <h3 style={{ marginTop: 0 }}>وضعیت بازیکنان</h3>
               <div style={{ flex: '1', overflowY: 'auto', overflowX: 'hidden' }}>
               {[...players].sort((a, b) => {

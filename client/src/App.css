@@ -172,6 +172,46 @@
     margin-top: 5px;
   }
   
+.game-layout {
+  display: flex;
+  gap: 20px;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.game-main {
+  flex: 1;
+  min-width: 400px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.game-side {
+  width: 350px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+@media (orientation: portrait), (max-width: 900px) {
+  .game-layout {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .game-main {
+    min-width: 0;
+  }
+
+  .game-side {
+    width: 100%;
+    max-height: 45vh;
+    overflow-y: auto;
+  }
+}
+
   .game-timer {
     font-size: 24px;
     font-weight: bold;
